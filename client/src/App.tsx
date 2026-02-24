@@ -441,8 +441,33 @@ export default function App() {
     })
   }
 
+  const submitCategoryBid = (bid: number) => {
+    if (!roomState || !socketRef.current) return
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: { type: 'category_bid', bid }
+    })
+  }
+
+  const submitCategoryWords = (words: string[]) => {
+    if (!roomState || !socketRef.current) return
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: { type: 'category_words', words }
+    })
+  }
+
+  const submitCategoryValidation = (acceptedWords: string[]) => {
+    if (!roomState || !socketRef.current) return
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: { type: 'category_validate', acceptedWords }
+    })
+  }
+
   useEffect(() => {
     if (!roomState || roomState.phase !== 'in_game') return
+    if (roomState.mode === 'category') return
     const connected = roomPlayers.filter((p) => p.connected)
     if (!connected.length) return
 
@@ -822,6 +847,13 @@ export default function App() {
                 onSubmitValue={submitCategory}
                 submissions={roomState?.roundSubmissions ?? {}}
                 currentPlayerName={currentPlayerName}
+                currentPlayerId={currentPlayerId}
+                isHost={isHost}
+                playerNameById={playerNameById}
+                guessLog={roomState?.roundGuessLog ?? []}
+                onSubmitBid={submitCategoryBid}
+                onSubmitWords={submitCategoryWords}
+                onValidateWords={submitCategoryValidation}
               />
             )}
             <div className="tagline">Runde läuft...</div>

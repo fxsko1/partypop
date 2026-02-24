@@ -359,28 +359,95 @@ io.on('connection', (socket) => {
     if (payload.action.type === 'category_submit') {
       if (!socket.data.playerId) return
       room.roundSubmissions[socket.data.playerId] = payload.action.value
-      const connected = room.players.filter((p) => p.connected)
-      const submitted = Object.keys(room.roundSubmissions).length
+      emitRoomUpdate(room)
+      return
+    }
+
+    if (payload.action.type === 'category_bid') {
+      if (!socket.data.playerId) return
+      if (room.roundGuessLog.some((entry) => entry.value === 'category_winner')) {
+        emitRoomUpdate(room)
+        return
+      }
+
+      const connectedIds = room.players.filter((p) => p.connected).map((p) => p.id)
+      const tieRaw = room.roundGuessLog.find((entry) => entry.value.startsWith('category_tiebreak:'))?.value
+      const requiredIds =
+        tieRaw && tieRaw.includes(':')
+          ? tieRaw.split(':')[1].split(',').filter(Boolean)
+          : connectedIds
+
+      if (!requiredIds.includes(socket.data.playerId)) {
+        emitRoomUpdate(room)
+        return
+      }
+
+      const bid = Math.max(1, Math.min(5, Math.floor(payload.action.bid)))
+      room.roundSubmissions[socket.data.playerId] = `bid:${bid}`
+
+      const allBids = requiredIds.every((id) => (room.roundSubmissions[id] ?? '').startsWith('bid:'))
+      if (allBids) {
+        const bids = requiredIds.map((id) => ({
+          playerId: id,
+          bid: Number((room.roundSubmissions[id] ?? 'bid:1').split(':')[1] ?? 1)
+        }))
+        const top = Math.max(...bids.map((b) => b.bid))
+        const tied = bids.filter((b) => b.bid === top)
+        room.roundGuessLog = room.roundGuessLog.filter((entry) => !entry.value.startsWith('category_tiebreak:'))
+        if (tied.length === 1) {
+          room.roundGuessLog.push({
+            playerId: tied[0].playerId,
+            value: 'category_winner',
+            correct: true
+          })
+        } else {
+          tied.forEach(({ playerId }) => {
+            delete room.roundSubmissions[playerId]
+          })
+          room.roundGuessLog.push({
+            playerId: room.hostId,
+            value: `category_tiebreak:${tied.map((item) => item.playerId).join(',')}`
+          })
+        }
+      }
+      emitRoomUpdate(room)
+      return
+    }
+
+    if (payload.action.type === 'category_words') {
+      if (!socket.data.playerId) return
+      const winner = room.roundGuessLog.find((e) => e.value === 'category_winner')?.playerId
+      if (!winner || winner !== socket.data.playerId) return
+      room.roundGuessLog = room.roundGuessLog.filter((entry) => entry.value !== 'category_words')
+      room.roundGuessLog.push({
+        playerId: socket.data.playerId,
+        value: `category_words:${payload.action.words.join('|')}`
+      })
+      emitRoomUpdate(room)
+      return
+    }
+
+    if (payload.action.type === 'category_validate') {
+      if (socket.data.playerId !== room.hostId) {
+        emitError(socket.id, { code: 'INVALID_PAYLOAD', message: 'Nur der Host darf validieren.' })
+        return
+      }
+      const winner = room.roundGuessLog.find((e) => e.value === 'category_winner')?.playerId
+      if (!winner) return
+      const bidRaw = room.roundSubmissions[winner] ?? ''
+      const bid = bidRaw.startsWith('bid:') ? Number(bidRaw.split(':')[1] ?? 1) : 1
+      const acceptedCount = payload.action.acceptedWords.length
       const awards = getRoundAwards(room.code)
-      const finalizeToken = `category:final:${room.round}`
-      if (submitted >= connected.length && !awards.has(finalizeToken)) {
-        const normalized = connected
-          .map((player) => ({
-            playerId: player.id,
-            value: (room.roundSubmissions[player.id] ?? '').trim().toLowerCase()
-          }))
-        const counts = new Map<string, number>()
-        normalized.forEach(({ value }) => {
-          if (!value) return
-          counts.set(value, (counts.get(value) ?? 0) + 1)
+      const token = `category:result:${room.round}:${winner}`
+      if (!awards.has(token)) {
+        const delta = acceptedCount >= bid ? 120 + 20 * bid : -40
+        addScore(room, winner, delta)
+        awards.add(token)
+        room.roundGuessLog.push({
+          playerId: winner,
+          value: `category_result:${acceptedCount}:${bid}:${delta}`,
+          correct: acceptedCount >= bid
         })
-        normalized.forEach(({ playerId, value }) => {
-          if (!value) return
-          if ((counts.get(value) ?? 0) === 1) {
-            addScore(room, playerId, 80)
-          }
-        })
-        awards.add(finalizeToken)
       }
       emitRoomUpdate(room)
       return

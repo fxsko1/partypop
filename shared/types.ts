@@ -92,6 +92,18 @@ export type PlayerAction =
       value: string
     }
   | {
+      type: 'category_bid'
+      bid: number
+    }
+  | {
+      type: 'category_words'
+      words: string[]
+    }
+  | {
+      type: 'category_validate'
+      acceptedWords: string[]
+    }
+  | {
       type: 'quiz_answer'
       questionId: string
       answerId: string

@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { type Edition, getCategoryPrompts } from './gameContent'
+
+type GuessLogEntry = { playerId: string; value: string; correct?: boolean }
 
 type Props = {
   players: string[]
@@ -11,95 +13,225 @@ type Props = {
   onSubmitValue: (value: string) => void
   submissions: Record<string, string>
   currentPlayerName: string
+  currentPlayerId: string
+  isHost: boolean
+  playerNameById: Record<string, string>
+  guessLog: GuessLogEntry[]
+  onSubmitBid: (bid: number) => void
+  onSubmitWords: (words: string[]) => void
+  onValidateWords: (acceptedWords: string[]) => void
 }
 
 export default function CategoryBattleGame({
-  players,
   round,
   editions,
   onRoundComplete,
   onScore,
   contentSeed,
-  onSubmitValue,
   submissions,
-  currentPlayerName
+  currentPlayerId,
+  isHost,
+  playerNameById,
+  guessLog,
+  onSubmitBid,
+  onSubmitWords,
+  onValidateWords,
+  onSubmitValue
 }: Props) {
+  void onScore
+
   const prompts = useMemo(() => getCategoryPrompts(editions), [editions])
   const prompt = prompts[contentSeed % prompts.length]
-  const [answers, setAnswers] = useState<Record<string, string>>({})
-  const scoredRef = useRef(false)
+
+  const [localBid, setLocalBid] = useState(3)
+  const [wordsText, setWordsText] = useState('')
+  const [secondsLeft, setSecondsLeft] = useState(20)
+  const [checked, setChecked] = useState<Record<string, boolean>>({})
+
+  const bids = useMemo(() => {
+    const out: Record<string, number> = {}
+    Object.entries(submissions).forEach(([playerId, value]) => {
+      if (value.startsWith('bid:')) out[playerId] = Number(value.split(':')[1] ?? 0)
+    })
+    return out
+  }, [submissions])
+
+  const tiebreakIds = useMemo(() => {
+    const marker = guessLog.find((entry) => entry.value.startsWith('category_tiebreak:'))?.value
+    if (!marker) return []
+    const [, ids] = marker.split(':')
+    return (ids ?? '').split(',').filter(Boolean)
+  }, [guessLog])
+
+  const winnerId = useMemo(
+    () => guessLog.find((entry) => entry.value === 'category_winner')?.playerId ?? null,
+    [guessLog]
+  )
+
+  const winnerWords = useMemo(() => {
+    const raw = guessLog.find((entry) => entry.value.startsWith('category_words:'))?.value ?? ''
+    if (!raw) return []
+    return raw
+      .replace('category_words:', '')
+      .split('|')
+      .map((word) => word.trim())
+      .filter(Boolean)
+  }, [guessLog])
+
+  const result = useMemo(() => {
+    const raw = guessLog.find((entry) => entry.value.startsWith('category_result:'))?.value
+    if (!raw) return null
+    const [, accepted, bid, delta] = raw.split(':')
+    return { accepted: Number(accepted), bid: Number(bid), delta: Number(delta) }
+  }, [guessLog])
+
+  const canBid = useMemo(() => {
+    if (winnerId) return false
+    if (!tiebreakIds.length) return true
+    return tiebreakIds.includes(currentPlayerId)
+  }, [winnerId, tiebreakIds, currentPlayerId])
+
+  const iAmWinner = Boolean(winnerId && winnerId === currentPlayerId)
 
   useEffect(() => {
-    const initial: Record<string, string> = {}
-    players.forEach((p) => {
-      initial[p] = ''
-    })
-    setAnswers(initial)
-    scoredRef.current = false
-  }, [players, round])
+    if (!winnerId || winnerWords.length > 0 || result) return
+    setSecondsLeft(20)
+  }, [winnerId, winnerWords.length, result, round])
 
   useEffect(() => {
-    if (scoredRef.current) return
-    const filled = players.every((p) => answers[p])
-    if (!filled) return
-    const normalized = players.map((p) => ({ player: p, answer: answers[p].trim().toLowerCase() }))
-    const counts: Record<string, number> = {}
-    normalized.forEach(({ answer }) => {
-      counts[answer] = (counts[answer] ?? 0) + 1
-    })
-    const awards = normalized
-      .filter(({ answer }) => answer && counts[answer] === 1)
-      .map(({ player }) => ({ player, delta: 80 }))
-    if (awards.length) onScore(awards)
-    scoredRef.current = true
-    const timeout = window.setTimeout(() => onRoundComplete(), 600)
+    if (!winnerId || winnerWords.length > 0 || result) return
+    const timer = window.setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          window.clearInterval(timer)
+          if (iAmWinner) {
+            const words = wordsText
+              .split(',')
+              .map((word) => word.trim())
+              .filter(Boolean)
+            onSubmitWords(words)
+            onSubmitValue(words.join(','))
+          }
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [winnerId, winnerWords.length, result, iAmWinner, wordsText, onSubmitWords, onSubmitValue])
+
+  useEffect(() => {
+    if (!result) return
+    const timeout = window.setTimeout(() => onRoundComplete(), 1400)
     return () => window.clearTimeout(timeout)
-  }, [answers, players, onScore, onRoundComplete])
-
-  const submit = (value: string) => {
-    const text = value.trim()
-    if (!text) return
-    onSubmitValue(text)
-    setAnswers((prev) => ({ ...prev, [currentPlayerName]: text }))
-  }
-
-  useEffect(() => {
-    const next: Record<string, string> = {}
-    players.forEach((player) => {
-      next[player] = ''
-    })
-    Object.values(submissions).forEach((_value) => {
-      // map by insertion order fallback is handled by local submit; server sync drives completion
-    })
-    setAnswers((prev) => ({ ...next, ...prev }))
-  }, [submissions, players])
+  }, [result, onRoundComplete])
 
   return (
     <div className="game-stage">
-      <div className="category-card">Nenne Dinge: {prompt.word}</div>
-      <div className="emoji-answer">
-        <input
-          className="guess-input"
-          placeholder="Dein Begriff"
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              submit((event.target as HTMLInputElement).value)
-              ;(event.target as HTMLInputElement).value = ''
-            }
-          }}
-        />
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={() => {
-            const input = document.querySelector<HTMLInputElement>('.guess-input')
-            if (!input) return
-            submit(input.value)
-            input.value = ''
-          }}
-        >
-          Senden
-        </button>
-      </div>
+      <div className="category-card">Kategorie Battle: {prompt.word}</div>
+
+      {!winnerId ? (
+        <div className="guess-section">
+          {canBid ? (
+            <>
+              <input
+                className="guess-input"
+                type="number"
+                min={1}
+                max={5}
+                value={localBid}
+                onChange={(event) => setLocalBid(Math.max(1, Math.min(5, Number(event.target.value))))}
+              />
+              <button className="btn btn-primary btn-sm" onClick={() => onSubmitBid(localBid)}>
+                Geheim bieten
+              </button>
+            </>
+          ) : (
+            <div className="tagline">Stechrunde läuft. Warte auf die Bieter.</div>
+          )}
+        </div>
+      ) : null}
+
+      {!winnerId && tiebreakIds.length > 0 ? (
+        <div className="tagline">
+          Stechrunde zwischen:{' '}
+          {tiebreakIds.map((id) => playerNameById[id] ?? 'Spieler').join(', ')}
+        </div>
+      ) : null}
+
+      {winnerId && winnerWords.length === 0 ? (
+        <div className="tagline">Eingabezeit: {secondsLeft}s</div>
+      ) : null}
+
+      {winnerId && iAmWinner && winnerWords.length === 0 ? (
+        <div className="guess-section">
+          <input
+            className="guess-input"
+            placeholder="Begriffe mit Komma trennen"
+            value={wordsText}
+            onChange={(event) => setWordsText(event.target.value)}
+          />
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => {
+              const words = wordsText
+                .split(',')
+                .map((word) => word.trim())
+                .filter(Boolean)
+              onSubmitWords(words)
+              onSubmitValue(words.join(','))
+            }}
+          >
+            Abschicken
+          </button>
+        </div>
+      ) : null}
+
+      {winnerId && !iAmWinner && winnerWords.length === 0 ? (
+        <div className="tagline">{playerNameById[winnerId] ?? 'Spieler'} gibt Begriffe ein.</div>
+      ) : null}
+
+      {isHost && winnerWords.length > 0 && !result ? (
+        <div className="guesses-log">
+          {winnerWords.map((word) => (
+            <label key={word} className="guess-entry">
+              <input
+                type="checkbox"
+                checked={checked[word] ?? true}
+                onChange={(event) =>
+                  setChecked((prev) => ({ ...prev, [word]: event.target.checked }))
+                }
+              />{' '}
+              {word}
+            </label>
+          ))}
+          <button
+            className="btn btn-yellow btn-sm"
+            onClick={() => {
+              const accepted = winnerWords.filter((word) => checked[word] ?? true)
+              onValidateWords(accepted)
+            }}
+          >
+            Validieren
+          </button>
+        </div>
+      ) : null}
+
+      {winnerWords.length > 0 && !isHost && !result ? (
+        <div className="tagline">Host validiert die Begriffe...</div>
+      ) : null}
+
+      {result ? (
+        <div className="guesses-log">
+          <div className={`guess-entry ${result.delta >= 0 ? 'correct-guess' : ''}`}>
+            Ergebnis: {result.accepted}/{result.bid} gültig · Punkte {result.delta >= 0 ? `+${result.delta}` : result.delta}
+          </div>
+        </div>
+      ) : null}
+
+      {!winnerId && Object.keys(bids).length > 0 ? (
+        <div className="tagline">Bieten abgeschlossen. Gewinner wird ermittelt...</div>
+      ) : null}
     </div>
   )
 }
