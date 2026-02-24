@@ -67,6 +67,7 @@ export default function App() {
   const playerIdRef = useRef(`player-${Math.random().toString(36).slice(2, 10)}`)
   const [screen, setScreen] = useState<Screen>('home')
   const [roomCode, setRoomCode] = useState<string>('----')
+  const [roomState, setRoomState] = useState<RoomState | null>(null)
   const [joinName, setJoinName] = useState('')
   const [joinCode, setJoinCode] = useState('')
   const [showProfile, setShowProfile] = useState(false)
@@ -83,6 +84,7 @@ export default function App() {
   const [currentGame, setCurrentGame] = useState<
     'quiz' | 'drawing' | 'voting' | 'emoji' | 'category'
   >('quiz')
+  const [isHost, setIsHost] = useState(false)
   const [connectionError, setConnectionError] = useState('')
   const [timeLeft, setTimeLeft] = useState(60)
   const roundCompleteRef = useRef(false)
@@ -95,33 +97,47 @@ export default function App() {
     [isPremium]
   )
 
-  const pickRandomGame = () => {
-    const next = games[Math.floor(Math.random() * games.length)]
-    setCurrentGame(next)
-  }
+  const pickRandomGame = () => games[Math.floor(Math.random() * games.length)]
 
   const startSession = () => {
-    setRound(1)
-    pickRandomGame()
-    setScreen('game')
+    if (!isHost || !roomState || !socketRef.current) return
+    const mode = pickRandomGame()
+    socketRef.current.emit('start-game', { code: roomState.code, mode })
   }
 
   const endRound = () => {
     if (roundCompleteRef.current) return
     roundCompleteRef.current = true
+    if (!isHost) return
     window.setTimeout(() => {
       nextRound()
     }, 600)
   }
 
   const nextRound = () => {
+    if (!isHost || !roomState || !socketRef.current) return
     if (round >= 10) {
-      setScreen('sessionEnd')
+      socketRef.current.emit('player-action', {
+        code: roomState.code,
+        action: {
+          type: 'host_next_round',
+          round,
+          nextMode: currentGame,
+          finished: true
+        }
+      })
       return
     }
     const next = round + 1
-    setRound(next)
-    pickRandomGame()
+    const mode = pickRandomGame()
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: {
+        type: 'host_next_round',
+        round: next,
+        nextMode: mode
+      }
+    })
   }
   const qrRef = useRef<HTMLCanvasElement | null>(null)
   const [players, setPlayers] = useState<string[]>([])
@@ -178,14 +194,30 @@ export default function App() {
     socketRef.current = socket
 
     const applyRoomState = (room: RoomState) => {
+      setRoomState(room)
       setRoomCode(room.code)
+      setIsHost(room.hostId === playerIdRef.current)
+      setRound(room.round)
+      if (room.mode) setCurrentGame(room.mode)
       setPlayers(room.players.map((player) => player.name))
+      setScores(
+        room.players.reduce<Record<string, number>>((acc, player) => {
+          acc[player.name] = player.score
+          return acc
+        }, {})
+      )
+      if (room.phase === 'in_game') {
+        setScreen('game')
+      } else if (room.phase === 'session_end') {
+        setScreen('sessionEnd')
+      } else {
+        setScreen('lobby')
+      }
       setConnectionError('')
     }
 
     socket.on('room-joined', (room) => {
       applyRoomState(room)
-      setScreen('lobby')
     })
 
     socket.on('game-state-update', (payload: GameStateUpdate) => {
@@ -207,6 +239,16 @@ export default function App() {
   }, [])
 
   const addScore = (player: string, delta: number) => {
+    if (!isHost || !roomState || !socketRef.current) return
+    const target = roomState.players.find((p) => p.name === player)
+    if (!target) return
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: {
+        type: 'score_delta',
+        updates: [{ playerId: target.id, delta }]
+      }
+    })
     setScores((prev) => ({
       ...prev,
       [player]: (prev[player] ?? 0) + delta
@@ -214,6 +256,23 @@ export default function App() {
   }
 
   const addScores = (items: Array<{ player: string; delta: number }>) => {
+    if (!isHost || !roomState || !socketRef.current) return
+    const updates = items
+      .map(({ player, delta }) => {
+        const target = roomState.players.find((p) => p.name === player)
+        if (!target) return null
+        return { playerId: target.id, delta }
+      })
+      .filter((item): item is { playerId: string; delta: number } => Boolean(item))
+    if (updates.length) {
+      socketRef.current.emit('player-action', {
+        code: roomState.code,
+        action: {
+          type: 'score_delta',
+          updates
+        }
+      })
+    }
     setScores((prev) => {
       const next = { ...prev }
       items.forEach(({ player, delta }) => {
@@ -527,8 +586,8 @@ export default function App() {
               {!isPremium ? <span className="badge">Premium</span> : null}
             </button>
           </div>
-          <button className="btn btn-primary session-start" onClick={startSession}>
-            Spielen
+          <button className="btn btn-primary session-start" onClick={startSession} disabled={!isHost}>
+            {isHost ? 'Spielen' : 'Warte auf Host...'}
           </button>
         </>
       ) : screen === 'game' ? (
@@ -618,9 +677,13 @@ export default function App() {
                 onScore={addScores}
               />
             )}
-            <button className="btn btn-yellow" onClick={nextRound}>
-              {round >= 10 ? 'Beenden' : 'Nächste Runde'}
-            </button>
+            {isHost ? (
+              <button className="btn btn-yellow" onClick={nextRound}>
+                {round >= 10 ? 'Beenden' : 'Nächste Runde'}
+              </button>
+            ) : (
+              <div className="tagline">Nur der Host kann die nächste Runde starten.</div>
+            )}
           </div>
         </>
       ) : screen === 'sessionEnd' ? (
@@ -670,8 +733,9 @@ export default function App() {
             className="btn btn-yellow"
             style={{ maxWidth: 360, width: '100%' }}
             onClick={() => setScreen('gameselect')}
+            disabled={!isHost}
           >
-            Spielen →
+            {isHost ? 'Spielen →' : 'Warte auf Host'}
           </button>
         </>
       )}
