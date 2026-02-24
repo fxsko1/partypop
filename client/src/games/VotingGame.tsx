@@ -8,9 +8,24 @@ type Props = {
   editions: Edition[]
   onScore: (items: Array<{ player: string; delta: number }>) => void
   contentSeed: number
+  onSubmitVote: (targetName: string) => void
+  submissions: Record<string, string>
+  playerNameById: Record<string, string>
+  currentPlayerName: string
 }
 
-export default function VotingGame({ players, round, onRoundComplete, editions, onScore, contentSeed }: Props) {
+export default function VotingGame({
+  players,
+  round,
+  onRoundComplete,
+  editions,
+  onScore,
+  contentSeed,
+  onSubmitVote,
+  submissions,
+  playerNameById,
+  currentPlayerName
+}: Props) {
   const [results, setResults] = useState<Record<string, number> | null>(null)
   const [voted, setVoted] = useState<Record<string, boolean>>({})
   const scoredRef = useRef(false)
@@ -34,14 +49,31 @@ export default function VotingGame({ players, round, onRoundComplete, editions, 
   }, [players, round, editions])
 
   const vote = (player: string) => {
-    const votes: Record<string, number> = {}
-    players.forEach((p) => {
-      votes[p] = Math.floor(Math.random() * 10 + 1)
-    })
-    votes[player] += 5
-    setResults(votes)
-    setVoted((prev) => ({ ...prev, [player]: true }))
+    if (voted[currentPlayerName]) return
+    onSubmitVote(player)
+    setVoted((prev) => ({ ...prev, [currentPlayerName]: true }))
   }
+
+  useEffect(() => {
+    const nextVoted: Record<string, boolean> = {}
+    players.forEach((player) => {
+      const id = Object.entries(playerNameById).find(([, name]) => name === player)?.[0]
+      nextVoted[player] = Boolean(id && submissions[id] !== undefined)
+    })
+    setVoted(nextVoted)
+
+    const tally: Record<string, number> = {}
+    players.forEach((p) => {
+      tally[p] = 0
+    })
+    Object.values(submissions).forEach((targetId) => {
+      const targetName = playerNameById[targetId]
+      if (targetName && tally[targetName] !== undefined) {
+        tally[targetName] += 1
+      }
+    })
+    setResults(tally)
+  }, [submissions, players, playerNameById])
 
   useEffect(() => {
     const allVoted = players.length > 0 && players.every((p) => voted[p])

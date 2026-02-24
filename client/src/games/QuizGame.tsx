@@ -9,12 +9,26 @@ type Props = {
   editions: Edition[]
   onScore: (player: string, delta: number) => void
   contentSeed: number
+  onSubmitAnswer: (answerIndex: number) => void
+  submissions: Record<string, string>
+  playerNameById: Record<string, string>
+  currentPlayerName: string
 }
 
-export default function QuizGame({ players, round, onRoundComplete, editions, onScore, contentSeed }: Props) {
+export default function QuizGame({
+  players,
+  round,
+  onRoundComplete,
+  editions,
+  onScore,
+  contentSeed,
+  onSubmitAnswer,
+  submissions,
+  playerNameById,
+  currentPlayerName
+}: Props) {
   const [selected, setSelected] = useState<number | null>(null)
   const [answered, setAnswered] = useState<Record<string, boolean>>({})
-  const [selectedByPlayer, setSelectedByPlayer] = useState<Record<string, number | null>>({})
   const [scores, setScores] = useState<Record<string, number>>({})
 
   useEffect(() => {
@@ -27,13 +41,10 @@ export default function QuizGame({ players, round, onRoundComplete, editions, on
 
   useEffect(() => {
     const initial: Record<string, boolean> = {}
-    const picks: Record<string, number | null> = {}
     players.forEach((p) => {
       initial[p] = false
-      picks[p] = null
     })
     setAnswered(initial)
-    setSelectedByPlayer(picks)
     setSelected(null)
   }, [players, round])
 
@@ -53,11 +64,11 @@ export default function QuizGame({ players, round, onRoundComplete, editions, on
   )
 
   const selectAnswer = (idx: number) => {
-    if (answered[players[0] ?? 'Du']) return
+    if (answered[currentPlayerName]) return
     setSelected(idx)
-    const playerKey = players[0] ?? 'Du'
+    const playerKey = currentPlayerName
     setAnswered((prev) => ({ ...prev, [playerKey]: true }))
-    setSelectedByPlayer((prev) => ({ ...prev, [playerKey]: idx }))
+    onSubmitAnswer(idx)
     if (idx === question.correct) {
       setScores((prev) => ({
         ...prev,
@@ -66,6 +77,16 @@ export default function QuizGame({ players, round, onRoundComplete, editions, on
       onScore(playerKey, 100)
     }
   }
+
+  useEffect(() => {
+    const fromSubmissions: Record<string, boolean> = {}
+    players.forEach((p) => {
+      fromSubmissions[p] = Object.values(playerNameById).includes(p)
+        ? Object.entries(playerNameById).some(([id, name]) => name === p && submissions[id] !== undefined)
+        : false
+    })
+    setAnswered((prev) => ({ ...prev, ...fromSubmissions }))
+  }, [submissions, players, playerNameById])
 
   useEffect(() => {
     const allAnswered = players.length > 0 && players.every((p) => answered[p])
@@ -102,7 +123,11 @@ export default function QuizGame({ players, round, onRoundComplete, editions, on
       {players.length > 0 && players.every((p) => answered[p]) ? (
         <div className="guesses-log">
           {players.map((player) => {
-            const pickedIndex = selectedByPlayer[player]
+            const pickedRaw = Object.entries(playerNameById).find(([, name]) => name === player)?.[0]
+            const pickedIndex =
+              pickedRaw !== undefined && submissions[pickedRaw] !== undefined
+                ? Number(submissions[pickedRaw])
+                : null
             const pickedText = pickedIndex !== null && pickedIndex !== undefined ? question.answers[pickedIndex] : 'Keine Antwort'
             return (
               <div key={player} className={`guess-entry${pickedIndex === question.correct ? ' correct-guess' : ''}`}>

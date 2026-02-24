@@ -97,6 +97,7 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(60)
   const [roundSeconds, setRoundSeconds] = useState(60)
   const roundCompleteRef = useRef(false)
+  const autoAdvancedKeyRef = useRef('')
   const lastConnectedIdsRef = useRef<string[]>([])
 
   const games = useMemo(
@@ -160,6 +161,14 @@ export default function App() {
     const me = roomPlayers.find((player) => player.id === playerIdRef.current)
     return me?.name ?? 'Du'
   }, [roomPlayers])
+  const playerNameById = useMemo(
+    () =>
+      roomPlayers.reduce<Record<string, string>>((acc, player) => {
+        acc[player.id] = player.name
+        return acc
+      }, {}),
+    [roomPlayers]
+  )
   const contentSeed = useMemo(
     () => hashString(`${roomCode}-${round}-${currentGame}-${[...editions].sort().join(',')}`),
     [roomCode, round, currentGame, editions]
@@ -422,6 +431,68 @@ export default function App() {
       }
     })
   }
+
+  const submitQuiz = (answerIndex: number) => {
+    if (!roomState || !socketRef.current) return
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: { type: 'quiz_submit', answerIndex }
+    })
+  }
+
+  const submitVote = (targetName: string) => {
+    if (!roomState || !socketRef.current) return
+    const target = roomState.players.find((p) => p.name === targetName)
+    if (!target) return
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: { type: 'voting_submit', targetPlayerId: target.id }
+    })
+  }
+
+  const submitDrawingGuess = (guess: string, correct: boolean) => {
+    if (!roomState || !socketRef.current) return
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: { type: 'drawing_guess', guess, correct }
+    })
+  }
+
+  const submitEmojiGuess = (guess: string, correct: boolean) => {
+    if (!roomState || !socketRef.current) return
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: { type: 'emoji_submit', guess, correct }
+    })
+  }
+
+  const submitCategory = (value: string) => {
+    if (!roomState || !socketRef.current) return
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: { type: 'category_submit', value }
+    })
+  }
+
+  useEffect(() => {
+    if (!isHost || !roomState || roomState.phase !== 'in_game') return
+    const connected = roomPlayers.filter((p) => p.connected)
+    if (!connected.length) return
+
+    let required = connected.length
+    if (roomState.mode === 'drawing') {
+      const drawerIdx = Math.max(roomState.round - 1, 0) % connected.length
+      const drawer = connected[drawerIdx]
+      required = connected.filter((p) => p.id !== drawer.id).length
+    }
+
+    const submitted = Object.keys(roomState.roundSubmissions ?? {}).length
+    const key = `${roomState.round}-${roomState.mode}-${submitted}-${required}`
+    if (submitted >= required && autoAdvancedKeyRef.current !== key) {
+      autoAdvancedKeyRef.current = key
+      window.setTimeout(() => nextRound(), 1200)
+    }
+  }, [isHost, roomState, roomPlayers])
 
   return (
     <div className="screen active" id={screen}>
@@ -719,6 +790,10 @@ export default function App() {
                 editions={editions}
                 onScore={addScore}
                 contentSeed={contentSeed}
+                onSubmitAnswer={submitQuiz}
+                submissions={roomState?.roundSubmissions ?? {}}
+                playerNameById={playerNameById}
+                currentPlayerName={currentPlayerName}
               />
             )}
             {currentGame === 'drawing' && (
@@ -730,6 +805,9 @@ export default function App() {
                 onScore={addScore}
                 currentPlayerName={currentPlayerName}
                 contentSeed={contentSeed}
+                onSubmitGuess={submitDrawingGuess}
+                guessLog={roomState?.roundGuessLog ?? []}
+                playerNameById={playerNameById}
               />
             )}
             {currentGame === 'voting' && (
@@ -740,6 +818,10 @@ export default function App() {
                 editions={editions}
                 onScore={addScores}
                 contentSeed={contentSeed}
+                onSubmitVote={submitVote}
+                submissions={roomState?.roundSubmissions ?? {}}
+                playerNameById={playerNameById}
+                currentPlayerName={currentPlayerName}
               />
             )}
             {currentGame === 'emoji' && (
@@ -750,6 +832,10 @@ export default function App() {
                 editions={editions}
                 onScore={addScore}
                 contentSeed={contentSeed}
+                onSubmitGuess={submitEmojiGuess}
+                submissions={roomState?.roundSubmissions ?? {}}
+                playerNameById={playerNameById}
+                currentPlayerName={currentPlayerName}
               />
             )}
             {currentGame === 'category' && (
@@ -760,6 +846,9 @@ export default function App() {
                 editions={editions}
                 onScore={addScores}
                 contentSeed={contentSeed}
+                onSubmitValue={submitCategory}
+                submissions={roomState?.roundSubmissions ?? {}}
+                currentPlayerName={currentPlayerName}
               />
             )}
             {isHost ? (

@@ -8,9 +8,24 @@ type Props = {
   onRoundComplete: () => void
   onScore: (player: string, delta: number) => void
   contentSeed: number
+  onSubmitGuess: (guess: string, correct: boolean) => void
+  submissions: Record<string, string>
+  playerNameById: Record<string, string>
+  currentPlayerName: string
 }
 
-export default function EmojiRiddleGame({ players, round, editions, onRoundComplete, onScore, contentSeed }: Props) {
+export default function EmojiRiddleGame({
+  players,
+  round,
+  editions,
+  onRoundComplete,
+  onScore,
+  contentSeed,
+  onSubmitGuess,
+  submissions,
+  playerNameById,
+  currentPlayerName
+}: Props) {
   const riddles = useMemo(() => getEmojiRiddles(editions), [editions])
   const riddle = riddles[contentSeed % riddles.length]
   const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -42,8 +57,19 @@ export default function EmojiRiddleGame({ players, round, editions, onRoundCompl
   const submit = (value: string) => {
     const text = value.trim()
     if (!text) return
-    setAnswers((prev) => ({ ...prev, [players[0] ?? 'Du']: text }))
+    const correct = text.toLowerCase() === riddle.answer.toLowerCase()
+    onSubmitGuess(text, correct)
+    setAnswers((prev) => ({ ...prev, [currentPlayerName]: text }))
   }
+
+  useEffect(() => {
+    const next: Record<string, string> = {}
+    players.forEach((player) => {
+      const id = Object.entries(playerNameById).find(([, name]) => name === player)?.[0]
+      next[player] = id ? submissions[id] ?? '' : ''
+    })
+    setAnswers(next)
+  }, [submissions, players, playerNameById])
 
   return (
     <div className="game-stage">

@@ -23,6 +23,12 @@ export interface RoomState {
   maxRounds: number
   roundSeconds: number
   selectedEditions: EditionKey[]
+  roundSubmissions: Record<PlayerId, string>
+  roundGuessLog: Array<{
+    playerId: PlayerId
+    value: string
+    correct?: boolean
+  }>
   players: Player[]
   freePlaysRemaining: number
   createdAt: number
@@ -61,6 +67,28 @@ export type PlayerAction =
   | {
       type: 'host_set_editions'
       editions: EditionKey[]
+    }
+  | {
+      type: 'quiz_submit'
+      answerIndex: number
+    }
+  | {
+      type: 'voting_submit'
+      targetPlayerId: PlayerId
+    }
+  | {
+      type: 'drawing_guess'
+      guess: string
+      correct: boolean
+    }
+  | {
+      type: 'emoji_submit'
+      guess: string
+      correct: boolean
+    }
+  | {
+      type: 'category_submit'
+      value: string
     }
   | {
       type: 'quiz_answer'

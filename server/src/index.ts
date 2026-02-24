@@ -52,6 +52,8 @@ const createRoomState = (code: RoomCode, host: Player): RoomState => ({
   maxRounds: 10,
   roundSeconds: 60,
   selectedEditions: ['wissen'],
+  roundSubmissions: {},
+  roundGuessLog: [],
   players: [host],
   freePlaysRemaining: 3,
   createdAt: Date.now()
@@ -168,6 +170,8 @@ io.on('connection', (socket) => {
     room.mode = payload.mode as GameMode
     room.phase = 'in_game' as GamePhase
     room.round = 1
+    room.roundSubmissions = {}
+    room.roundGuessLog = []
     emitRoomUpdate(room)
   })
 
@@ -200,6 +204,8 @@ io.on('connection', (socket) => {
       room.round = payload.action.round
       room.mode = payload.action.nextMode
       room.phase = payload.action.finished ? 'session_end' : 'in_game'
+      room.roundSubmissions = {}
+      room.roundGuessLog = []
       emitRoomUpdate(room)
       return
     }
@@ -221,6 +227,53 @@ io.on('connection', (socket) => {
         return
       }
       room.selectedEditions = payload.action.editions
+      emitRoomUpdate(room)
+      return
+    }
+
+    if (payload.action.type === 'quiz_submit') {
+      if (!socket.data.playerId) return
+      room.roundSubmissions[socket.data.playerId] = String(payload.action.answerIndex)
+      emitRoomUpdate(room)
+      return
+    }
+
+    if (payload.action.type === 'voting_submit') {
+      if (!socket.data.playerId) return
+      room.roundSubmissions[socket.data.playerId] = payload.action.targetPlayerId
+      emitRoomUpdate(room)
+      return
+    }
+
+    if (payload.action.type === 'drawing_guess') {
+      if (!socket.data.playerId) return
+      room.roundGuessLog.push({
+        playerId: socket.data.playerId,
+        value: payload.action.guess,
+        correct: payload.action.correct
+      })
+      if (payload.action.correct) {
+        room.roundSubmissions[socket.data.playerId] = payload.action.guess
+      }
+      emitRoomUpdate(room)
+      return
+    }
+
+    if (payload.action.type === 'emoji_submit') {
+      if (!socket.data.playerId) return
+      room.roundGuessLog.push({
+        playerId: socket.data.playerId,
+        value: payload.action.guess,
+        correct: payload.action.correct
+      })
+      room.roundSubmissions[socket.data.playerId] = payload.action.guess
+      emitRoomUpdate(room)
+      return
+    }
+
+    if (payload.action.type === 'category_submit') {
+      if (!socket.data.playerId) return
+      room.roundSubmissions[socket.data.playerId] = payload.action.value
       emitRoomUpdate(room)
       return
     }

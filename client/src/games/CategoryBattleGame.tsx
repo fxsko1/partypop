@@ -8,9 +8,22 @@ type Props = {
   onRoundComplete: () => void
   onScore: (items: Array<{ player: string; delta: number }>) => void
   contentSeed: number
+  onSubmitValue: (value: string) => void
+  submissions: Record<string, string>
+  currentPlayerName: string
 }
 
-export default function CategoryBattleGame({ players, round, editions, onRoundComplete, onScore, contentSeed }: Props) {
+export default function CategoryBattleGame({
+  players,
+  round,
+  editions,
+  onRoundComplete,
+  onScore,
+  contentSeed,
+  onSubmitValue,
+  submissions,
+  currentPlayerName
+}: Props) {
   const prompts = useMemo(() => getCategoryPrompts(editions), [editions])
   const prompt = prompts[contentSeed % prompts.length]
   const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -46,8 +59,20 @@ export default function CategoryBattleGame({ players, round, editions, onRoundCo
   const submit = (value: string) => {
     const text = value.trim()
     if (!text) return
-    setAnswers((prev) => ({ ...prev, [players[0] ?? 'Du']: text }))
+    onSubmitValue(text)
+    setAnswers((prev) => ({ ...prev, [currentPlayerName]: text }))
   }
+
+  useEffect(() => {
+    const next: Record<string, string> = {}
+    players.forEach((player) => {
+      next[player] = ''
+    })
+    Object.values(submissions).forEach((_value) => {
+      // map by insertion order fallback is handled by local submit; server sync drives completion
+    })
+    setAnswers((prev) => ({ ...next, ...prev }))
+  }, [submissions, players])
 
   return (
     <div className="game-stage">

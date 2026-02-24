@@ -11,6 +11,9 @@ type Props = {
   onScore: (player: string, delta: number) => void
   currentPlayerName: string
   contentSeed: number
+  onSubmitGuess: (guess: string, correct: boolean) => void
+  guessLog: Array<{ playerId: string; value: string; correct?: boolean }>
+  playerNameById: Record<string, string>
 }
 
 export default function DrawingGame({
@@ -20,7 +23,10 @@ export default function DrawingGame({
   editions,
   onScore,
   currentPlayerName,
-  contentSeed
+  contentSeed,
+  onSubmitGuess,
+  guessLog,
+  playerNameById
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const isDrawingRef = useRef(false)
@@ -120,9 +126,21 @@ export default function DrawingGame({
     const guess = guessInput.trim()
     if (!guess) return
     const correct = normalize(guess) === normalize(word)
+    onSubmitGuess(guess, correct)
     setGuesses((prev) => [...prev, { player: currentPlayerName, guess, correct }])
     setGuessInput('')
   }
+
+  useEffect(() => {
+    const synced = guessLog.map((entry) => ({
+      player: playerNameById[entry.playerId] ?? 'Spieler',
+      guess: entry.value,
+      correct: Boolean(entry.correct)
+    }))
+    if (synced.length) {
+      setGuesses(synced)
+    }
+  }, [guessLog, playerNameById])
 
   useEffect(() => {
     const correctPlayers = Array.from(new Set(guesses.filter((g) => g.correct).map((g) => g.player)))
