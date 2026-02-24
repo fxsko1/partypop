@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { io, Socket } from 'socket.io-client'
 import CategoryBattleGame from './games/CategoryBattleGame'
 import DrawingGame from './games/DrawingGame'
 import EmojiRiddleGame from './games/EmojiRiddleGame'
 import QuizGame from './games/QuizGame'
 import VotingGame from './games/VotingGame'
+import type {
+  ClientToServerEvents,
+  GameStateUpdate,
+  JoinRoomPayload,
+  RoomState,
+  ServerError,
+  ServerToClientEvents
+} from '@shared/types'
 
 type Screen = 'home' | 'lobby' | 'join' | 'gameselect' | 'game' | 'sessionEnd'
 
 const defaultEmojis = ['🎉', '🎊', '🎈', '✨', '🌟', '🎮', '🕹️', '🃏', '🎲', '🎯', '🏆', '💥']
-
-const generateCode = () => Math.random().toString(36).substring(2, 6).toUpperCase()
 
 const drawSimpleQR = (canvas: HTMLCanvasElement, text: string) => {
   const ctx = canvas.getContext('2d')
@@ -56,6 +63,8 @@ const drawSimpleQR = (canvas: HTMLCanvasElement, text: string) => {
 }
 
 export default function App() {
+  const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null)
+  const playerIdRef = useRef(`player-${Math.random().toString(36).slice(2, 10)}`)
   const [screen, setScreen] = useState<Screen>('home')
   const [roomCode, setRoomCode] = useState<string>('----')
   const [joinName, setJoinName] = useState('')
@@ -74,6 +83,7 @@ export default function App() {
   const [currentGame, setCurrentGame] = useState<
     'quiz' | 'drawing' | 'voting' | 'emoji' | 'category'
   >('quiz')
+  const [connectionError, setConnectionError] = useState('')
   const [timeLeft, setTimeLeft] = useState(60)
   const roundCompleteRef = useRef(false)
 
@@ -114,7 +124,7 @@ export default function App() {
     pickRandomGame()
   }
   const qrRef = useRef<HTMLCanvasElement | null>(null)
-  const [players] = useState<string[]>(['Du (Host)'])
+  const [players, setPlayers] = useState<string[]>([])
   const [scores, setScores] = useState<Record<string, number>>({})
   const backgroundEmojis = useMemo(() => {
     if (screen === 'home') return defaultEmojis
@@ -160,6 +170,42 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players.length])
 
+  useEffect(() => {
+    const socket = io(import.meta.env.VITE_SERVER_URL ?? 'http://localhost:4000', {
+      transports: ['websocket']
+    })
+
+    socketRef.current = socket
+
+    const applyRoomState = (room: RoomState) => {
+      setRoomCode(room.code)
+      setPlayers(room.players.map((player) => player.name))
+      setConnectionError('')
+    }
+
+    socket.on('room-joined', (room) => {
+      applyRoomState(room)
+      setScreen('lobby')
+    })
+
+    socket.on('game-state-update', (payload: GameStateUpdate) => {
+      applyRoomState(payload.room)
+    })
+
+    socket.on('error', (error: ServerError) => {
+      setConnectionError(error.message)
+    })
+
+    socket.on('disconnect', () => {
+      setConnectionError('Verbindung verloren. Bitte neu laden.')
+    })
+
+    return () => {
+      socket.disconnect()
+      socketRef.current = null
+    }
+  }, [])
+
   const addScore = (player: string, delta: number) => {
     setScores((prev) => ({
       ...prev,
@@ -178,11 +224,9 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (screen !== 'lobby') return
-    const code = generateCode()
-    setRoomCode(code)
-    if (qrRef.current) drawSimpleQR(qrRef.current, code)
-  }, [screen])
+    if (roomCode === '----') return
+    if (qrRef.current) drawSimpleQR(qrRef.current, roomCode)
+  }, [roomCode])
 
   useEffect(() => {
     if (screen !== 'game') return
@@ -211,6 +255,37 @@ export default function App() {
 
     return () => window.clearTimeout(timeoutId)
   }, [screen])
+
+  const createRoom = () => {
+    const socket = socketRef.current
+    if (!socket) return
+    const payload: JoinRoomPayload = {
+      isHost: true,
+      name: 'Du (Host)',
+      playerId: playerIdRef.current
+    }
+    socket.emit('join-room', payload)
+  }
+
+  const joinRoom = () => {
+    const socket = socketRef.current
+    if (!socket) return
+    if (joinCode.trim().length !== 4) {
+      setConnectionError('Bitte einen 4-stelligen Code eingeben.')
+      return
+    }
+    if (!joinName.trim()) {
+      setConnectionError('Bitte Namen eingeben.')
+      return
+    }
+    const payload: JoinRoomPayload = {
+      isHost: false,
+      code: joinCode.trim().toUpperCase(),
+      name: joinName.trim(),
+      playerId: playerIdRef.current
+    }
+    socket.emit('join-room', payload)
+  }
 
   return (
     <div className="screen active" id={screen}>
@@ -294,7 +369,7 @@ export default function App() {
           <div className="logo">PartyPop 🎊</div>
           <p className="tagline">Das Party-Game für alle! Kein Download nötig.</p>
           <div className="home-buttons">
-            <button className="btn btn-primary" onClick={() => setScreen('lobby')}>
+            <button className="btn btn-primary" onClick={createRoom}>
               🎮 Raum erstellen
             </button>
             <button className="btn btn-secondary" onClick={() => setScreen('join')}>
@@ -324,7 +399,10 @@ export default function App() {
             value={joinCode}
             onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
           />
-          <button className="btn btn-primary join-cta">Beitreten!</button>
+          <button className="btn btn-primary join-cta" onClick={joinRoom}>
+            Beitreten!
+          </button>
+          {connectionError ? <p className="tagline">{connectionError}</p> : null}
         </>
       ) : screen === 'gameselect' ? (
         <>
@@ -587,6 +665,7 @@ export default function App() {
               )}
             </div>
           </div>
+          {connectionError ? <p className="tagline">{connectionError}</p> : null}
           <button
             className="btn btn-yellow"
             style={{ maxWidth: 360, width: '100%' }}
