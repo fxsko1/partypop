@@ -89,6 +89,7 @@ export interface ServerError {
 
 export interface ClientToServerEvents {
   'join-room': (payload: JoinRoomPayload) => void
+  'leave-room': () => void
   'start-game': (payload: StartGamePayload) => void
   'player-action': (payload: PlayerActionPayload) => void
 }

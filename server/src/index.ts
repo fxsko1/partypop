@@ -66,6 +66,32 @@ const emitError = (socketId: string, error: ServerError) => {
 }
 
 io.on('connection', (socket) => {
+  const handleLeave = () => {
+    const { roomCode, playerId } = socket.data
+    if (!roomCode || !playerId) return
+
+    const room = rooms.get(roomCode)
+    if (!room) return
+
+    if (playerId === room.hostId) {
+      io.to(room.code).emit('error', {
+        code: 'SERVER_ERROR',
+        message: 'Host hat den Raum verlassen. Lobby wurde geschlossen.'
+      })
+      rooms.delete(room.code)
+      socket.leave(room.code)
+      socket.data.playerId = undefined
+      socket.data.roomCode = undefined
+      return
+    }
+
+    room.players = room.players.map((p) => (p.id === playerId ? { ...p, connected: false } : p))
+    emitRoomUpdate(room)
+    socket.leave(room.code)
+    socket.data.playerId = undefined
+    socket.data.roomCode = undefined
+  }
+
   socket.on('join-room', (payload: JoinRoomPayload) => {
     const { code, name, isHost, playerId } = payload
 
@@ -179,24 +205,12 @@ io.on('connection', (socket) => {
     emitRoomUpdate(room)
   })
 
+  socket.on('leave-room', () => {
+    handleLeave()
+  })
+
   socket.on('disconnect', () => {
-    const { roomCode, playerId } = socket.data
-    if (!roomCode || !playerId) return
-
-    const room = rooms.get(roomCode)
-    if (!room) return
-
-    if (playerId === room.hostId) {
-      io.to(room.code).emit('error', {
-        code: 'SERVER_ERROR',
-        message: 'Host hat den Raum verlassen. Lobby wurde geschlossen.'
-      })
-      rooms.delete(room.code)
-      return
-    }
-
-    room.players = room.players.map((p) => (p.id === playerId ? { ...p, connected: false } : p))
-    emitRoomUpdate(room)
+    handleLeave()
   })
 })
 

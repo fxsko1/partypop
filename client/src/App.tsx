@@ -387,6 +387,18 @@ export default function App() {
     socket.emit('join-room', payload)
   }
 
+  const leaveRoom = () => {
+    socketRef.current?.emit('leave-room')
+    setRoomState(null)
+    setRoomPlayers([])
+    setRoomCode('----')
+    setScores({})
+    setRound(0)
+    setTimeLeft(60)
+    setLeaveNotice('')
+    setScreen('home')
+  }
+
   const updateRoundSeconds = (value: number) => {
     if (!socketRef.current || !roomState || !isHost) return
     setRoundSeconds(value)
@@ -762,7 +774,7 @@ export default function App() {
         </>
       ) : (
         <>
-          <button className="btn btn-back" onClick={() => setScreen('home')}>
+          <button className="btn btn-back" onClick={leaveRoom}>
             ← Zurück
           </button>
           <div className="logo">PartyPop 🎊</div>
