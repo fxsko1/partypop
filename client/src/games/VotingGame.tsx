@@ -106,7 +106,7 @@ export default function VotingGame({
   return (
     <div id="voting-game" className="game-stage">
       <div className="voting-question">{question}</div>
-      {results ? (
+      {allVoted && results ? (
         <div className="vote-result">
           {Object.entries(results)
             .sort((a, b) => b[1] - a[1])

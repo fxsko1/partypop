@@ -16,7 +16,7 @@ import type {
   ServerToClientEvents
 } from '@shared/types'
 
-type Screen = 'home' | 'lobby' | 'join' | 'gameselect' | 'game' | 'sessionEnd'
+type Screen = 'home' | 'lobby' | 'join' | 'gameselect' | 'game' | 'roundSummary' | 'sessionEnd'
 
 const defaultEmojis = ['🎉', '🎊', '🎈', '✨', '🌟', '🎮', '🕹️', '🃏', '🎲', '🎯', '🏆', '💥']
 const hashString = (value: string) => {
@@ -120,10 +120,7 @@ export default function App() {
   const endRound = () => {
     if (roundCompleteRef.current) return
     roundCompleteRef.current = true
-    if (!isHost) return
-    window.setTimeout(() => {
-      nextRound()
-    }, 600)
+    setScreen('roundSummary')
   }
 
   const nextRound = () => {
@@ -277,7 +274,7 @@ export default function App() {
       } else if (room.phase === 'session_end') {
         setScreen('sessionEnd')
       } else {
-        setScreen('lobby')
+        setScreen((prev) => (prev === 'gameselect' ? 'gameselect' : 'lobby'))
       }
       setConnectionError('')
     }
@@ -445,7 +442,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!isHost || !roomState || roomState.phase !== 'in_game') return
+    if (!roomState || roomState.phase !== 'in_game') return
     const connected = roomPlayers.filter((p) => p.connected)
     if (!connected.length) return
 
@@ -460,9 +457,9 @@ export default function App() {
     const key = `${roomState.round}-${roomState.mode}-${submitted}-${required}`
     if (submitted >= required && autoAdvancedKeyRef.current !== key) {
       autoAdvancedKeyRef.current = key
-      window.setTimeout(() => nextRound(), 1200)
+      endRound()
     }
-  }, [isHost, roomState, roomPlayers])
+  }, [roomState, roomPlayers])
 
   return (
     <div className="screen active" id={screen}>
@@ -827,7 +824,33 @@ export default function App() {
                 currentPlayerName={currentPlayerName}
               />
             )}
-            <div className="tagline">Die nächste Runde startet automatisch.</div>
+            <div className="tagline">Runde läuft...</div>
+          </div>
+        </>
+      ) : screen === 'roundSummary' ? (
+        <>
+          <button className="btn btn-back" onClick={() => setScreen('game')}>
+            ← Zurück
+          </button>
+          <div className="game-shell">
+            <div className="game-title">Zwischenstand</div>
+            <div className="scoreboard">
+              {roomPlayers
+                .filter((player) => player.connected)
+                .sort((a, b) => (scores[b.name] ?? 0) - (scores[a.name] ?? 0))
+                .map((player) => (
+                  <div key={player.id} className="score-chip">
+                    👤 {player.name}: <strong>{scores[player.name] ?? 0}</strong>
+                  </div>
+                ))}
+            </div>
+            {isHost ? (
+              <button className="btn btn-yellow" onClick={nextRound}>
+                {round >= 10 ? 'Beenden' : 'Nächste Runde'}
+              </button>
+            ) : (
+              <div className="tagline">Host startet die nächste Runde...</div>
+            )}
           </div>
         </>
       ) : screen === 'sessionEnd' ? (
