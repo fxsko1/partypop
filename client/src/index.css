@@ -451,6 +451,46 @@ small,
   max-width: 420px;
 }
 
+.emoji-feedback {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-weight: 800;
+  animation: emojiPop 0.35s ease;
+}
+
+.emoji-feedback.ok {
+  background: rgba(0, 245, 212, 0.2);
+  color: #00f5d4;
+  border: 1px solid rgba(0, 245, 212, 0.55);
+}
+
+.emoji-feedback.bad {
+  background: rgba(255, 71, 87, 0.2);
+  color: #ff7a87;
+  border: 1px solid rgba(255, 71, 87, 0.55);
+}
+
+.emoji-reveal {
+  padding: 0.65rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 225, 53, 0.5);
+  background: rgba(255, 225, 53, 0.14);
+  color: #ffe135;
+  font-weight: 800;
+  animation: emojiPop 0.35s ease;
+}
+
+@keyframes emojiPop {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .category-card {
   font-family: 'Fredoka One', cursive;
   font-size: 1.2rem;

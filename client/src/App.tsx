@@ -147,6 +147,9 @@ export default function App() {
         nextMode: mode
       }
     })
+    roundCompleteRef.current = false
+    setTimeLeft(roundSeconds)
+    setScreen('game')
   }
 
   useEffect(() => {
@@ -331,7 +334,9 @@ export default function App() {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           window.clearInterval(timer)
-          endRound()
+          if (currentGame !== 'emoji') {
+            endRound()
+          }
           return 0
         }
         return prev - 1
@@ -483,7 +488,7 @@ export default function App() {
 
   useEffect(() => {
     if (!roomState || roomState.phase !== 'in_game') return
-    if (roomState.mode === 'category') return
+    if (roomState.mode === 'category' || roomState.mode === 'emoji') return
     const connected = roomPlayers.filter((p) => p.connected)
     if (!connected.length) return
 
@@ -851,12 +856,12 @@ export default function App() {
                 round={round}
                 onRoundComplete={endRound}
                 editions={editions}
-                onScore={addScore}
                 contentSeed={contentSeed}
                 onSubmitGuess={submitEmojiGuess}
                 submissions={roomState?.roundSubmissions ?? {}}
                 playerNameById={playerNameById}
                 currentPlayerName={currentPlayerName}
+                timeLeft={timeLeft}
               />
             )}
             {currentGame === 'category' && (

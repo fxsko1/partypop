@@ -6,12 +6,12 @@ type Props = {
   round: number
   editions: Edition[]
   onRoundComplete: () => void
-  onScore: (player: string, delta: number) => void
   contentSeed: number
   onSubmitGuess: (guess: string, correct: boolean) => void
   submissions: Record<string, string>
   playerNameById: Record<string, string>
   currentPlayerName: string
+  timeLeft: number
 }
 
 export default function EmojiRiddleGame({
@@ -19,12 +19,12 @@ export default function EmojiRiddleGame({
   round,
   editions,
   onRoundComplete,
-  onScore,
   contentSeed,
   onSubmitGuess,
   submissions,
   playerNameById,
-  currentPlayerName
+  currentPlayerName,
+  timeLeft
 }: Props) {
   const effectiveEditions = useMemo(() => {
     const hasFilmOrGaming = editions.includes('film') || editions.includes('gaming')
@@ -33,7 +33,9 @@ export default function EmojiRiddleGame({
   const riddles = useMemo(() => getEmojiRiddlesWithEdition(effectiveEditions), [effectiveEditions])
   const riddle = riddles[contentSeed % riddles.length]
   const [answers, setAnswers] = useState<Record<string, string>>({})
-  const scoredRef = useRef(false)
+  const completedRef = useRef(false)
+  const [feedback, setFeedback] = useState<{ text: string; kind: 'ok' | 'bad' } | null>(null)
+  const [revealAnswer, setRevealAnswer] = useState(false)
 
   useEffect(() => {
     const initial: Record<string, string> = {}
@@ -41,22 +43,30 @@ export default function EmojiRiddleGame({
       initial[p] = ''
     })
     setAnswers(initial)
-    scoredRef.current = false
+    completedRef.current = false
+    setFeedback(null)
+    setRevealAnswer(false)
   }, [players, round])
 
   useEffect(() => {
-    if (scoredRef.current) return
-    const filled = players.every((p) => answers[p])
-    if (!filled) return
-    const correct = players.filter((p) => answers[p].toLowerCase() === riddle.answer.toLowerCase())
-    correct.forEach((player, index) => {
-      const points = Math.max(120 - index * 20, 40)
-      onScore(player, points)
-    })
-    scoredRef.current = true
-    const timeout = window.setTimeout(() => onRoundComplete(), 600)
+    if (completedRef.current) return
+    const allCorrect = players.every(
+      (player) => answers[player] && answers[player].toLowerCase() === riddle.answer.toLowerCase()
+    )
+    if (!allCorrect) return
+    completedRef.current = true
+    const timeout = window.setTimeout(() => onRoundComplete(), 700)
     return () => window.clearTimeout(timeout)
-  }, [answers, players, riddle, onRoundComplete, onScore])
+  }, [answers, players, riddle, onRoundComplete])
+
+  useEffect(() => {
+    if (completedRef.current) return
+    if (timeLeft > 0) return
+    setRevealAnswer(true)
+    completedRef.current = true
+    const timeout = window.setTimeout(() => onRoundComplete(), 2300)
+    return () => window.clearTimeout(timeout)
+  }, [timeLeft, onRoundComplete])
 
   const submit = (value: string) => {
     const text = value.trim()
@@ -64,6 +74,7 @@ export default function EmojiRiddleGame({
     const correct = text.toLowerCase() === riddle.answer.toLowerCase()
     onSubmitGuess(text, correct)
     setAnswers((prev) => ({ ...prev, [currentPlayerName]: text }))
+    setFeedback(correct ? { text: '✅ Wort erraten!', kind: 'ok' } : { text: '❌ Noch nicht richtig', kind: 'bad' })
   }
 
   useEffect(() => {
@@ -75,12 +86,23 @@ export default function EmojiRiddleGame({
     setAnswers(next)
   }, [submissions, players, playerNameById])
 
+  useEffect(() => {
+    const ownAnswer = answers[currentPlayerName]
+    if (!ownAnswer) return
+    const correct = ownAnswer.toLowerCase() === riddle.answer.toLowerCase()
+    setFeedback(correct ? { text: '✅ Wort erraten!', kind: 'ok' } : { text: '❌ Noch nicht richtig', kind: 'bad' })
+  }, [answers, currentPlayerName, riddle.answer])
+
   return (
     <div className="game-stage">
       <div className="tagline" style={{ marginBottom: '0.5rem' }}>
         Hinweis: {riddle.edition === 'film' ? '🎬 Film' : riddle.edition === 'gaming' ? '🎮 Gaming' : '🌍 Allgemein'}
       </div>
       <div className="emoji-card">{riddle.emoji}</div>
+      {feedback ? (
+        <div className={`emoji-feedback ${feedback.kind === 'ok' ? 'ok' : 'bad'}`}>{feedback.text}</div>
+      ) : null}
+      {revealAnswer ? <div className="emoji-reveal">Auflösung: {riddle.answer}</div> : null}
       <div className="emoji-answer">
         <input
           className="guess-input"

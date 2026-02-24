@@ -354,7 +354,7 @@ io.on('connection', (socket) => {
         const idx = correctOrder.indexOf(socket.data.playerId)
         const token = `emoji:${room.round}:${socket.data.playerId}`
         if (!awards.has(token)) {
-          addScore(room, socket.data.playerId, Math.max(120 - idx * 20, 40))
+          addScore(room, socket.data.playerId, Math.max(100 - idx * 20, 0))
           awards.add(token)
         }
       }
