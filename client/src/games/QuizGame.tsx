@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { type Edition, getQuizQuestions } from './gameContent'
 const classes = ['a', 'b', 'c', 'd']
 
@@ -14,6 +14,8 @@ export default function QuizGame({ players, round, onRoundComplete, editions, on
   const [selected, setSelected] = useState<number | null>(null)
   const [answered, setAnswered] = useState<Record<string, boolean>>({})
   const [scores, setScores] = useState<Record<string, number>>({})
+  const [questionIndex, setQuestionIndex] = useState(0)
+  const lastQuestionIndexRef = useRef<number | null>(null)
 
   useEffect(() => {
     const initial: Record<string, number> = {}
@@ -32,10 +34,21 @@ export default function QuizGame({ players, round, onRoundComplete, editions, on
     setSelected(null)
   }, [players, round])
 
+  useEffect(() => {
+    const list = getQuizQuestions(editions)
+    if (!list.length) return
+    let nextIndex = Math.floor(Math.random() * list.length)
+    if (list.length > 1 && lastQuestionIndexRef.current === nextIndex) {
+      nextIndex = (nextIndex + 1) % list.length
+    }
+    setQuestionIndex(nextIndex)
+    lastQuestionIndexRef.current = nextIndex
+  }, [round, editions])
+
   const question = useMemo(() => {
     const list = getQuizQuestions(editions)
-    return list[round % list.length]
-  }, [round, editions])
+    return list[questionIndex % list.length]
+  }, [questionIndex, editions])
 
   const scoreBar = useMemo(
     () =>

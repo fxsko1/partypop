@@ -11,9 +11,21 @@ type Props = {
 
 export default function EmojiRiddleGame({ players, round, editions, onRoundComplete, onScore }: Props) {
   const riddles = useMemo(() => getEmojiRiddles(editions), [editions])
-  const riddle = riddles[round % riddles.length]
+  const [riddleIndex, setRiddleIndex] = useState(0)
+  const lastRiddleIndexRef = useRef<number | null>(null)
+  const riddle = riddles[riddleIndex % riddles.length]
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const scoredRef = useRef(false)
+
+  useEffect(() => {
+    if (!riddles.length) return
+    let nextIndex = Math.floor(Math.random() * riddles.length)
+    if (riddles.length > 1 && lastRiddleIndexRef.current === nextIndex) {
+      nextIndex = (nextIndex + 1) % riddles.length
+    }
+    setRiddleIndex(nextIndex)
+    lastRiddleIndexRef.current = nextIndex
+  }, [round, riddles.length])
 
   useEffect(() => {
     const initial: Record<string, string> = {}
