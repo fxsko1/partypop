@@ -85,7 +85,8 @@ export default function App() {
   const [lastEdition, setLastEdition] = useState<EditionKey>('wissen')
   const [showPremiumGate, setShowPremiumGate] = useState(false)
   const [pendingEdition, setPendingEdition] = useState<'gaming' | 'film' | null>(null)
-  const isPremium = false
+  const isPremium = true
+  const premiumPaywallEnabled = false
   const maxEditions = isPremium ? 5 : 2
   const [round, setRound] = useState(0)
   const [currentGame, setCurrentGame] = useState<
@@ -188,7 +189,7 @@ export default function App() {
 
   const toggleEdition = (value: EditionKey) => {
     if (!isHost) return
-    if ((value === 'gaming' || value === 'film') && !isPremium) {
+    if (premiumPaywallEnabled && (value === 'gaming' || value === 'film') && !isPremium) {
       setPendingEdition(value)
       setShowPremiumGate(true)
       return
@@ -367,6 +368,7 @@ export default function App() {
   }, [screen, round, currentGame, roundSeconds])
 
   useEffect(() => {
+    if (!premiumPaywallEnabled) return
     if (screen !== 'home' && screen !== 'join') return
 
     const timeoutId = window.setTimeout(() => {
@@ -502,7 +504,7 @@ export default function App() {
         </button>
       ) : null}
 
-      {showPremiumGate ? (
+      {premiumPaywallEnabled && showPremiumGate ? (
         <div className="profile-modal" role="dialog" aria-modal="true">
           <div className="profile-card">
             <div className="profile-header">
@@ -527,13 +529,15 @@ export default function App() {
         </div>
       ) : null}
 
-      <div className={`premium-nudge ${showPremiumNudge ? 'show' : ''}`}>
-        <div className="premium-nudge__title">Premium freischalten</div>
-        <div className="premium-nudge__text">Mehr Spiele, mehr Features, keine Limits.</div>
-        <button className="btn btn-yellow premium-nudge__cta" onClick={() => setShowProfile(true)}>
-          Jetzt upgraden
-        </button>
-      </div>
+      {premiumPaywallEnabled ? (
+        <div className={`premium-nudge ${showPremiumNudge ? 'show' : ''}`}>
+          <div className="premium-nudge__title">Premium freischalten</div>
+          <div className="premium-nudge__text">Mehr Spiele, mehr Features, keine Limits.</div>
+          <button className="btn btn-yellow premium-nudge__cta" onClick={() => setShowProfile(true)}>
+            Jetzt upgraden
+          </button>
+        </div>
+      ) : null}
 
       {showProfile ? (
         <div className="profile-modal" role="dialog" aria-modal="true">
