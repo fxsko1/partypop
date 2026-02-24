@@ -9,6 +9,7 @@ import type {
   ClientToServerEvents,
   GameStateUpdate,
   JoinRoomPayload,
+  Player,
   RoomState,
   ServerError,
   ServerToClientEvents
@@ -140,8 +141,12 @@ export default function App() {
     })
   }
   const qrRef = useRef<HTMLCanvasElement | null>(null)
-  const [players, setPlayers] = useState<string[]>([])
+  const [roomPlayers, setRoomPlayers] = useState<Player[]>([])
   const [scores, setScores] = useState<Record<string, number>>({})
+  const activePlayers = useMemo(
+    () => roomPlayers.filter((player) => player.connected).map((player) => player.name),
+    [roomPlayers]
+  )
   const backgroundEmojis = useMemo(() => {
     if (screen === 'home') return defaultEmojis
     const emojiMap = {
@@ -179,12 +184,12 @@ export default function App() {
 
   useEffect(() => {
     const initial: Record<string, number> = {}
-    players.forEach((p) => {
+    activePlayers.forEach((p) => {
       initial[p] = scores[p] ?? 0
     })
     setScores(initial)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [players.length])
+  }, [activePlayers.length])
 
   useEffect(() => {
     const socket = io(import.meta.env.VITE_SERVER_URL ?? 'http://localhost:4000', {
@@ -199,7 +204,7 @@ export default function App() {
       setIsHost(room.hostId === playerIdRef.current)
       setRound(room.round)
       if (room.mode) setCurrentGame(room.mode)
-      setPlayers(room.players.map((player) => player.name))
+      setRoomPlayers(room.players)
       setScores(
         room.players.reduce<Record<string, number>>((acc, player) => {
           acc[player.name] = player.score
@@ -226,6 +231,11 @@ export default function App() {
 
     socket.on('error', (error: ServerError) => {
       setConnectionError(error.message)
+      if (error.code === 'SERVER_ERROR' && error.message.includes('Host')) {
+        setScreen('home')
+        setRoomState(null)
+        setRoomPlayers([])
+      }
     })
 
     socket.on('disconnect', () => {
@@ -596,9 +606,10 @@ export default function App() {
             ← Zurück
           </button>
           <div className="scoreboard">
-            {players.map((player) => (
-              <div key={player} className="score-chip">
-                👤 {player.split(' ')[0]}: <strong>{scores[player] ?? 0}</strong>
+            {roomPlayers.map((player) => (
+              <div key={player.id} className="score-chip">
+                👤 {player.name.split(' ')[0]}
+                {!player.connected ? ' (raus)' : ''}: <strong>{scores[player.name] ?? 0}</strong>
               </div>
             ))}
           </div>
@@ -634,7 +645,7 @@ export default function App() {
             ) : null}
             {currentGame === 'quiz' && (
               <QuizGame
-                players={players}
+                players={activePlayers}
                 round={round}
                 onRoundComplete={endRound}
                 editions={editions}
@@ -643,7 +654,7 @@ export default function App() {
             )}
             {currentGame === 'drawing' && (
               <DrawingGame
-                players={players}
+                players={activePlayers}
                 round={round}
                 onRoundComplete={endRound}
                 editions={editions}
@@ -652,7 +663,7 @@ export default function App() {
             )}
             {currentGame === 'voting' && (
               <VotingGame
-                players={players}
+                players={activePlayers}
                 round={round}
                 onRoundComplete={endRound}
                 editions={editions}
@@ -661,7 +672,7 @@ export default function App() {
             )}
             {currentGame === 'emoji' && (
               <EmojiRiddleGame
-                players={players}
+                players={activePlayers}
                 round={round}
                 onRoundComplete={endRound}
                 editions={editions}
@@ -670,7 +681,7 @@ export default function App() {
             )}
             {currentGame === 'category' && (
               <CategoryBattleGame
-                players={players}
+                players={activePlayers}
                 round={round}
                 onRoundComplete={endRound}
                 editions={editions}
@@ -714,15 +725,16 @@ export default function App() {
           </div>
           <div className="players-list">
             <h3>
-              👥 Spieler (<span>{players.length}</span>)
+              👥 Spieler (<span>{activePlayers.length}</span>/<span>{roomPlayers.length}</span>)
             </h3>
             <div className="player-chips">
-              {players.length === 0 ? (
+              {roomPlayers.length === 0 ? (
                 <div className="player-empty">Warte auf Spieler…</div>
               ) : (
-                players.map((player) => (
-                  <div key={player} className="player-chip">
-                    {player}
+                roomPlayers.map((player) => (
+                  <div key={player.id} className="player-chip">
+                    {player.name}
+                    {!player.connected ? ' (raus)' : ''}
                   </div>
                 ))
               )}

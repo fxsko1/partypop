@@ -48,6 +48,8 @@ const createRoomState = (code: RoomCode, host: Player): RoomState => ({
   hostId: host.id,
   mode: null,
   phase: 'lobby',
+  round: 0,
+  maxRounds: 10,
   players: [host],
   freePlaysRemaining: 3,
   createdAt: Date.now()
@@ -118,9 +120,14 @@ io.on('connection', (socket) => {
       emitError(socket.id, { code: 'ROOM_NOT_FOUND', message: 'Raum nicht gefunden.' })
       return
     }
+    if (socket.data.playerId !== room.hostId) {
+      emitError(socket.id, { code: 'INVALID_PAYLOAD', message: 'Nur der Host kann starten.' })
+      return
+    }
 
     room.mode = payload.mode as GameMode
     room.phase = 'in_game' as GamePhase
+    room.round = 1
     emitRoomUpdate(room)
   })
 
@@ -131,7 +138,32 @@ io.on('connection', (socket) => {
       return
     }
 
-    // Placeholder: game logic will be handled per mode later.
+    if (payload.action.type === 'score_delta') {
+      if (socket.data.playerId !== room.hostId) {
+        emitError(socket.id, { code: 'INVALID_PAYLOAD', message: 'Nur der Host darf Punkte vergeben.' })
+        return
+      }
+      payload.action.updates.forEach(({ playerId, delta }) => {
+        const player = room.players.find((p) => p.id === playerId)
+        if (!player) return
+        player.score += delta
+      })
+      emitRoomUpdate(room)
+      return
+    }
+
+    if (payload.action.type === 'host_next_round') {
+      if (socket.data.playerId !== room.hostId) {
+        emitError(socket.id, { code: 'INVALID_PAYLOAD', message: 'Nur der Host kann Runden steuern.' })
+        return
+      }
+      room.round = payload.action.round
+      room.mode = payload.action.nextMode
+      room.phase = payload.action.finished ? 'session_end' : 'in_game'
+      emitRoomUpdate(room)
+      return
+    }
+
     emitRoomUpdate(room)
   })
 
@@ -141,6 +173,15 @@ io.on('connection', (socket) => {
 
     const room = rooms.get(roomCode)
     if (!room) return
+
+    if (playerId === room.hostId) {
+      io.to(room.code).emit('error', {
+        code: 'SERVER_ERROR',
+        message: 'Host hat den Raum verlassen. Lobby wurde geschlossen.'
+      })
+      rooms.delete(room.code)
+      return
+    }
 
     room.players = room.players.map((p) => (p.id === playerId ? { ...p, connected: false } : p))
     emitRoomUpdate(room)

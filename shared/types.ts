@@ -2,8 +2,8 @@ export type RoomCode = string
 export type PlayerId = string
 export type GameId = string
 
-export type GameMode = 'quiz' | 'drawing' | 'voting'
-export type GamePhase = 'lobby' | 'countdown' | 'in_game' | 'results'
+export type GameMode = 'quiz' | 'drawing' | 'voting' | 'emoji' | 'category'
+export type GamePhase = 'lobby' | 'countdown' | 'in_game' | 'results' | 'session_end'
 
 export interface Player {
   id: PlayerId
@@ -18,6 +18,8 @@ export interface RoomState {
   hostId: PlayerId
   mode: GameMode | null
   phase: GamePhase
+  round: number
+  maxRounds: number
   players: Player[]
   freePlaysRemaining: number
   createdAt: number
@@ -36,6 +38,19 @@ export interface StartGamePayload {
 }
 
 export type PlayerAction =
+  | {
+      type: 'score_delta'
+      updates: Array<{
+        playerId: PlayerId
+        delta: number
+      }>
+    }
+  | {
+      type: 'host_next_round'
+      round: number
+      nextMode: GameMode
+      finished?: boolean
+    }
   | {
       type: 'quiz_answer'
       questionId: string

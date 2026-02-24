@@ -70,7 +70,8 @@ export default function VotingGame({ players, round, onRoundComplete, editions, 
   }, [voted, players, onRoundComplete])
 
   useEffect(() => {
-    if (!results || scoredRef.current) return
+    const allVoted = players.length > 0 && players.every((p) => voted[p])
+    if (!results || scoredRef.current || !allVoted) return
     const sorted = Object.entries(results).sort((a, b) => b[1] - a[1])
     const chosen = sorted[0]?.[0]
     if (!chosen) return
@@ -79,7 +80,7 @@ export default function VotingGame({ players, round, onRoundComplete, editions, 
       .map((player) => ({ player, delta: 50 }))
     onScore(awards)
     scoredRef.current = true
-  }, [results, players, onScore])
+  }, [results, players, voted, onScore])
 
   return (
     <div id="voting-game" className="game-stage">
