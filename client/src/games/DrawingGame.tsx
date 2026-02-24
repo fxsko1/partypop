@@ -10,6 +10,7 @@ type Props = {
   editions: Edition[]
   onScore: (player: string, delta: number) => void
   currentPlayerName: string
+  contentSeed: number
 }
 
 export default function DrawingGame({
@@ -18,7 +19,8 @@ export default function DrawingGame({
   onRoundComplete,
   editions,
   onScore,
-  currentPlayerName
+  currentPlayerName,
+  contentSeed
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const isDrawingRef = useRef(false)
@@ -42,11 +44,11 @@ export default function DrawingGame({
 
   useEffect(() => {
     const list = getDrawingWords(editions)
-    setWord(list[Math.floor(Math.random() * list.length)])
+    setWord(list[contentSeed % list.length])
     setGuesses([])
     setGuessInput('')
     awardedRef.current = {}
-  }, [round, editions])
+  }, [round, editions, contentSeed])
 
   useEffect(() => {
     const canvas = canvasRef.current

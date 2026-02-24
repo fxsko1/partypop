@@ -7,17 +7,16 @@ type Props = {
   onRoundComplete: () => void
   editions: Edition[]
   onScore: (items: Array<{ player: string; delta: number }>) => void
+  contentSeed: number
 }
 
-export default function VotingGame({ players, round, onRoundComplete, editions, onScore }: Props) {
-  const [voteQuestionIdx, setVoteQuestionIdx] = useState(0)
+export default function VotingGame({ players, round, onRoundComplete, editions, onScore, contentSeed }: Props) {
   const [results, setResults] = useState<Record<string, number> | null>(null)
   const [voted, setVoted] = useState<Record<string, boolean>>({})
   const scoredRef = useRef(false)
-  const lastQuestionIndexRef = useRef<number | null>(null)
 
   const list = getVotingQuestions(editions)
-  const question = list[voteQuestionIdx % list.length]
+  const question = list[contentSeed % list.length]
 
   const total = useMemo(() => {
     if (!results) return 0
@@ -33,16 +32,6 @@ export default function VotingGame({ players, round, onRoundComplete, editions, 
     setResults(null)
     scoredRef.current = false
   }, [players, round, editions])
-
-  useEffect(() => {
-    if (!list.length) return
-    let nextIndex = Math.floor(Math.random() * list.length)
-    if (list.length > 1 && lastQuestionIndexRef.current === nextIndex) {
-      nextIndex = (nextIndex + 1) % list.length
-    }
-    setVoteQuestionIdx(nextIndex)
-    lastQuestionIndexRef.current = nextIndex
-  }, [round, editions, list.length])
 
   const vote = (player: string) => {
     const votes: Record<string, number> = {}

@@ -18,6 +18,13 @@ import type {
 type Screen = 'home' | 'lobby' | 'join' | 'gameselect' | 'game' | 'sessionEnd'
 
 const defaultEmojis = ['🎉', '🎊', '🎈', '✨', '🌟', '🎮', '🕹️', '🃏', '🎲', '🎯', '🏆', '💥']
+const hashString = (value: string) => {
+  let hash = 0
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0
+  }
+  return hash
+}
 
 const drawSimpleQR = (canvas: HTMLCanvasElement, text: string) => {
   const ctx = canvas.getContext('2d')
@@ -154,6 +161,10 @@ export default function App() {
     const me = roomPlayers.find((player) => player.id === playerIdRef.current)
     return me?.name ?? 'Du'
   }, [roomPlayers])
+  const contentSeed = useMemo(
+    () => hashString(`${roomCode}-${round}-${currentGame}-${[...editions].sort().join(',')}`),
+    [roomCode, round, currentGame, editions]
+  )
   const backgroundEmojis = useMemo(() => {
     if (screen === 'home') return defaultEmojis
     const emojiMap = {
@@ -683,6 +694,7 @@ export default function App() {
                 onRoundComplete={endRound}
                 editions={editions}
                 onScore={addScore}
+                contentSeed={contentSeed}
               />
             )}
             {currentGame === 'drawing' && (
@@ -693,6 +705,7 @@ export default function App() {
                 editions={editions}
                 onScore={addScore}
                 currentPlayerName={currentPlayerName}
+                contentSeed={contentSeed}
               />
             )}
             {currentGame === 'voting' && (
@@ -702,6 +715,7 @@ export default function App() {
                 onRoundComplete={endRound}
                 editions={editions}
                 onScore={addScores}
+                contentSeed={contentSeed}
               />
             )}
             {currentGame === 'emoji' && (
@@ -711,6 +725,7 @@ export default function App() {
                 onRoundComplete={endRound}
                 editions={editions}
                 onScore={addScore}
+                contentSeed={contentSeed}
               />
             )}
             {currentGame === 'category' && (
@@ -720,6 +735,7 @@ export default function App() {
                 onRoundComplete={endRound}
                 editions={editions}
                 onScore={addScores}
+                contentSeed={contentSeed}
               />
             )}
             {isHost ? (

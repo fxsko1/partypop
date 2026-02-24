@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { type Edition, getQuizQuestions } from './gameContent'
 const classes = ['a', 'b', 'c', 'd']
 
@@ -8,15 +8,14 @@ type Props = {
   onRoundComplete: () => void
   editions: Edition[]
   onScore: (player: string, delta: number) => void
+  contentSeed: number
 }
 
-export default function QuizGame({ players, round, onRoundComplete, editions, onScore }: Props) {
+export default function QuizGame({ players, round, onRoundComplete, editions, onScore, contentSeed }: Props) {
   const [selected, setSelected] = useState<number | null>(null)
   const [answered, setAnswered] = useState<Record<string, boolean>>({})
   const [selectedByPlayer, setSelectedByPlayer] = useState<Record<string, number | null>>({})
   const [scores, setScores] = useState<Record<string, number>>({})
-  const [questionIndex, setQuestionIndex] = useState(0)
-  const lastQuestionIndexRef = useRef<number | null>(null)
 
   useEffect(() => {
     const initial: Record<string, number> = {}
@@ -38,21 +37,10 @@ export default function QuizGame({ players, round, onRoundComplete, editions, on
     setSelected(null)
   }, [players, round])
 
-  useEffect(() => {
-    const list = getQuizQuestions(editions)
-    if (!list.length) return
-    let nextIndex = Math.floor(Math.random() * list.length)
-    if (list.length > 1 && lastQuestionIndexRef.current === nextIndex) {
-      nextIndex = (nextIndex + 1) % list.length
-    }
-    setQuestionIndex(nextIndex)
-    lastQuestionIndexRef.current = nextIndex
-  }, [round, editions])
-
   const question = useMemo(() => {
     const list = getQuizQuestions(editions)
-    return list[questionIndex % list.length]
-  }, [questionIndex, editions])
+    return list[contentSeed % list.length]
+  }, [contentSeed, editions])
 
   const scoreBar = useMemo(
     () =>
@@ -82,7 +70,7 @@ export default function QuizGame({ players, round, onRoundComplete, editions, on
   useEffect(() => {
     const allAnswered = players.length > 0 && players.every((p) => answered[p])
     if (allAnswered) {
-      const timeout = window.setTimeout(() => onRoundComplete(), 600)
+      const timeout = window.setTimeout(() => onRoundComplete(), 2500)
       return () => window.clearTimeout(timeout)
     }
   }, [answered, players, onRoundComplete])

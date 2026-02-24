@@ -7,25 +7,14 @@ type Props = {
   editions: Edition[]
   onRoundComplete: () => void
   onScore: (items: Array<{ player: string; delta: number }>) => void
+  contentSeed: number
 }
 
-export default function CategoryBattleGame({ players, round, editions, onRoundComplete, onScore }: Props) {
+export default function CategoryBattleGame({ players, round, editions, onRoundComplete, onScore, contentSeed }: Props) {
   const prompts = useMemo(() => getCategoryPrompts(editions), [editions])
-  const [promptIndex, setPromptIndex] = useState(0)
-  const lastPromptIndexRef = useRef<number | null>(null)
-  const prompt = prompts[promptIndex % prompts.length]
+  const prompt = prompts[contentSeed % prompts.length]
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const scoredRef = useRef(false)
-
-  useEffect(() => {
-    if (!prompts.length) return
-    let nextIndex = Math.floor(Math.random() * prompts.length)
-    if (prompts.length > 1 && lastPromptIndexRef.current === nextIndex) {
-      nextIndex = (nextIndex + 1) % prompts.length
-    }
-    setPromptIndex(nextIndex)
-    lastPromptIndexRef.current = nextIndex
-  }, [round, prompts.length])
 
   useEffect(() => {
     const initial: Record<string, string> = {}

@@ -7,25 +7,14 @@ type Props = {
   editions: Edition[]
   onRoundComplete: () => void
   onScore: (player: string, delta: number) => void
+  contentSeed: number
 }
 
-export default function EmojiRiddleGame({ players, round, editions, onRoundComplete, onScore }: Props) {
+export default function EmojiRiddleGame({ players, round, editions, onRoundComplete, onScore, contentSeed }: Props) {
   const riddles = useMemo(() => getEmojiRiddles(editions), [editions])
-  const [riddleIndex, setRiddleIndex] = useState(0)
-  const lastRiddleIndexRef = useRef<number | null>(null)
-  const riddle = riddles[riddleIndex % riddles.length]
+  const riddle = riddles[contentSeed % riddles.length]
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const scoredRef = useRef(false)
-
-  useEffect(() => {
-    if (!riddles.length) return
-    let nextIndex = Math.floor(Math.random() * riddles.length)
-    if (riddles.length > 1 && lastRiddleIndexRef.current === nextIndex) {
-      nextIndex = (nextIndex + 1) % riddles.length
-    }
-    setRiddleIndex(nextIndex)
-    lastRiddleIndexRef.current = nextIndex
-  }, [round, riddles.length])
 
   useEffect(() => {
     const initial: Record<string, string> = {}
