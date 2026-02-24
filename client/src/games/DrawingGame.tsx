@@ -30,7 +30,6 @@ export default function DrawingGame({
   const [word, setWord] = useState('')
   const [guessInput, setGuessInput] = useState('')
   const [guesses, setGuesses] = useState<Array<{ player: string; guess: string; correct: boolean }>>([])
-  const [submitted, setSubmitted] = useState<Record<string, boolean>>({})
 
   const drawerName = useMemo(() => {
     if (!players.length) return currentPlayerName
@@ -46,7 +45,6 @@ export default function DrawingGame({
     setWord(list[Math.floor(Math.random() * list.length)])
     setGuesses([])
     setGuessInput('')
-    setSubmitted({})
     awardedRef.current = {}
   }, [round, editions])
 
@@ -106,13 +104,21 @@ export default function DrawingGame({
     ctx.fillRect(0, 0, canvas.width, canvas.height)
   }
 
+  const normalize = (value: string) =>
+    value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+
   const submitGuess = () => {
     if (isDrawer) return
     const guess = guessInput.trim()
-    if (!guess || submitted[currentPlayerName]) return
-    const correct = guess.toLowerCase() === word.toLowerCase()
+    if (!guess) return
+    const correct = normalize(guess) === normalize(word)
     setGuesses((prev) => [...prev, { player: currentPlayerName, guess, correct }])
-    setSubmitted((prev) => ({ ...prev, [currentPlayerName]: true }))
     setGuessInput('')
   }
 
