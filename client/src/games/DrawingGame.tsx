@@ -12,8 +12,10 @@ type Props = {
   currentPlayerName: string
   contentSeed: number
   onSubmitGuess: (guess: string, correct: boolean) => void
+  onSubmitCanvas: (imageData: string) => void
   guessLog: Array<{ playerId: string; value: string; correct?: boolean }>
   playerNameById: Record<string, string>
+  submissions: Record<string, string>
 }
 
 export default function DrawingGame({
@@ -25,8 +27,10 @@ export default function DrawingGame({
   currentPlayerName,
   contentSeed,
   onSubmitGuess,
+  onSubmitCanvas,
   guessLog,
-  playerNameById
+  playerNameById,
+  submissions
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const isDrawingRef = useRef(false)
@@ -37,6 +41,7 @@ export default function DrawingGame({
   const [brushSize, setBrushSize] = useState(6)
   const [word, setWord] = useState('')
   const [guessInput, setGuessInput] = useState('')
+  const [hint, setHint] = useState('')
   const [guesses, setGuesses] = useState<Array<{ player: string; guess: string; correct: boolean }>>([])
 
   const drawerName = useMemo(() => {
@@ -53,6 +58,7 @@ export default function DrawingGame({
     setWord(list[contentSeed % list.length])
     setGuesses([])
     setGuessInput('')
+    setHint('')
     awardedRef.current = {}
   }, [round, editions, contentSeed])
 
@@ -100,6 +106,9 @@ export default function DrawingGame({
 
   const handlePointerUp = () => {
     isDrawingRef.current = false
+    const canvas = canvasRef.current
+    if (!canvas || !isDrawer) return
+    onSubmitCanvas(canvas.toDataURL('image/png', 0.7))
   }
 
   const clearCanvas = () => {
@@ -110,6 +119,7 @@ export default function DrawingGame({
     if (!ctx) return
     ctx.fillStyle = 'white'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
+    onSubmitCanvas(canvas.toDataURL('image/png', 0.7))
   }
 
   const normalize = (value: string) =>
@@ -126,10 +136,37 @@ export default function DrawingGame({
     const guess = guessInput.trim()
     if (!guess) return
     const correct = normalize(guess) === normalize(word)
+    if (!correct) {
+      const g = normalize(guess)
+      const w = normalize(word)
+      const near =
+        (g.length >= 4 && w.includes(g)) ||
+        (w.length >= 4 && g.includes(w)) ||
+        g.split(' ').some((part) => part.length >= 4 && w.includes(part))
+      setHint(near ? 'Fast!' : '')
+    } else {
+      setHint('')
+    }
     onSubmitGuess(guess, correct)
     setGuesses((prev) => [...prev, { player: currentPlayerName, guess, correct }])
     setGuessInput('')
   }
+
+  useEffect(() => {
+    if (isDrawer) return
+    const imageData = submissions.__drawing_canvas
+    if (!imageData) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const img = new Image()
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+    }
+    img.src = imageData
+  }, [submissions, isDrawer])
 
   useEffect(() => {
     const synced = guessLog.map((entry) => ({
@@ -232,6 +269,7 @@ export default function DrawingGame({
           <button className="btn btn-primary btn-sm" onClick={submitGuess}>
             Raten!
           </button>
+          {hint ? <div className="tagline" style={{ color: '#00f5d4' }}>{hint}</div> : null}
         </div>
       )}
 

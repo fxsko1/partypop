@@ -425,6 +425,14 @@ export default function App() {
     })
   }
 
+  const submitDrawingCanvas = (imageData: string) => {
+    if (!roomState || !socketRef.current) return
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: { type: 'drawing_canvas', imageData }
+    })
+  }
+
   const submitEmojiGuess = (guess: string, correct: boolean) => {
     if (!roomState || !socketRef.current) return
     socketRef.current.emit('player-action', {
@@ -478,7 +486,12 @@ export default function App() {
       required = connected.filter((p) => p.id !== drawer.id).length
     }
 
-    const submitted = Object.keys(roomState.roundSubmissions ?? {}).length
+    const submitted =
+      roomState.mode === 'drawing'
+        ? connected
+            .map((p) => p.id)
+            .filter((id) => id in (roomState.roundSubmissions ?? {})).length
+        : Object.keys(roomState.roundSubmissions ?? {}).filter((key) => !key.startsWith('__')).length
     const key = `${roomState.round}-${roomState.mode}-${submitted}-${required}`
     if (submitted >= required && autoAdvancedKeyRef.current !== key) {
       autoAdvancedKeyRef.current = key
@@ -802,8 +815,10 @@ export default function App() {
                 currentPlayerName={currentPlayerName}
                 contentSeed={contentSeed}
                 onSubmitGuess={submitDrawingGuess}
+                onSubmitCanvas={submitDrawingCanvas}
                 guessLog={roomState?.roundGuessLog ?? []}
                 playerNameById={playerNameById}
+                submissions={roomState?.roundSubmissions ?? {}}
               />
             )}
             {currentGame === 'voting' && (

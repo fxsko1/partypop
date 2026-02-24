@@ -86,7 +86,7 @@ export default function VotingGame({
 
   useEffect(() => {
     if (allVoted) {
-      const timeout = window.setTimeout(() => onRoundComplete(), 1200)
+      const timeout = window.setTimeout(() => onRoundComplete(), 4000)
       return () => window.clearTimeout(timeout)
     }
   }, [allVoted, onRoundComplete])

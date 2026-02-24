@@ -328,6 +328,12 @@ io.on('connection', (socket) => {
       return
     }
 
+    if (payload.action.type === 'drawing_canvas') {
+      room.roundSubmissions.__drawing_canvas = payload.action.imageData
+      emitRoomUpdate(room)
+      return
+    }
+
     if (payload.action.type === 'emoji_submit') {
       if (!socket.data.playerId) return
       room.roundGuessLog.push({

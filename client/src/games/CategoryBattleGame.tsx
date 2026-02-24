@@ -152,6 +152,16 @@ export default function CategoryBattleGame({
         </div>
       ) : null}
 
+      {!winnerId && Object.keys(bids).length > 0 ? (
+        <div className="guesses-log">
+          {Object.entries(bids).map(([id, bid]) => (
+            <div key={id} className="guess-entry">
+              {playerNameById[id] ?? 'Spieler'} hat {bid} geboten
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {!winnerId && tiebreakIds.length > 0 ? (
         <div className="tagline">
           Stechrunde zwischen:{' '}

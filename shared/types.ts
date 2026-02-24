@@ -83,6 +83,10 @@ export type PlayerAction =
       correct: boolean
     }
   | {
+      type: 'drawing_canvas'
+      imageData: string
+    }
+  | {
       type: 'emoji_submit'
       guess: string
       correct: boolean
