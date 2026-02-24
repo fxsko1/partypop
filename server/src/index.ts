@@ -51,6 +51,7 @@ const createRoomState = (code: RoomCode, host: Player): RoomState => ({
   round: 0,
   maxRounds: 10,
   roundSeconds: 60,
+  selectedEditions: ['wissen'],
   players: [host],
   freePlaysRemaining: 3,
   createdAt: Date.now()
@@ -125,15 +126,27 @@ io.on('connection', (socket) => {
       return
     }
 
-    const player: Player = {
-      id: playerId ?? socket.id,
-      name,
-      score: 0,
-      connected: true,
-      isHost: false
+    const wantedId = playerId ?? socket.id
+    const existingById = room.players.find((p) => p.id === wantedId)
+    const existingByName = room.players.find((p) => p.name === name)
+    let player: Player
+    if (existingById) {
+      existingById.connected = true
+      player = existingById
+    } else if (existingByName && !existingByName.connected) {
+      existingByName.connected = true
+      player = existingByName
+    } else {
+      player = {
+        id: wantedId,
+        name,
+        score: 0,
+        connected: true,
+        isHost: false
+      }
+      room.players.push(player)
     }
 
-    room.players.push(player)
     socket.join(code)
     socket.data.playerId = player.id
     socket.data.roomCode = code
@@ -198,6 +211,16 @@ io.on('connection', (socket) => {
       }
       const seconds = Math.max(20, Math.min(180, Math.floor(payload.action.roundSeconds)))
       room.roundSeconds = seconds
+      emitRoomUpdate(room)
+      return
+    }
+
+    if (payload.action.type === 'host_set_editions') {
+      if (socket.data.playerId !== room.hostId) {
+        emitError(socket.id, { code: 'INVALID_PAYLOAD', message: 'Nur der Host kann Editionen ändern.' })
+        return
+      }
+      room.selectedEditions = payload.action.editions
       emitRoomUpdate(room)
       return
     }

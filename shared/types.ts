@@ -1,6 +1,7 @@
 export type RoomCode = string
 export type PlayerId = string
 export type GameId = string
+export type EditionKey = 'fussball' | 'wissen' | 'romantisch' | 'gaming' | 'film'
 
 export type GameMode = 'quiz' | 'drawing' | 'voting' | 'emoji' | 'category'
 export type GamePhase = 'lobby' | 'countdown' | 'in_game' | 'results' | 'session_end'
@@ -21,6 +22,7 @@ export interface RoomState {
   round: number
   maxRounds: number
   roundSeconds: number
+  selectedEditions: EditionKey[]
   players: Player[]
   freePlaysRemaining: number
   createdAt: number
@@ -55,6 +57,10 @@ export type PlayerAction =
   | {
       type: 'host_set_round_seconds'
       roundSeconds: number
+    }
+  | {
+      type: 'host_set_editions'
+      editions: EditionKey[]
     }
   | {
       type: 'quiz_answer'

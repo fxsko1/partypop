@@ -7,6 +7,7 @@ import QuizGame from './games/QuizGame'
 import VotingGame from './games/VotingGame'
 import type {
   ClientToServerEvents,
+  EditionKey,
   GameStateUpdate,
   JoinRoomPayload,
   Player,
@@ -80,10 +81,8 @@ export default function App() {
   const [joinCode, setJoinCode] = useState('')
   const [showProfile, setShowProfile] = useState(false)
   const [showPremiumNudge, setShowPremiumNudge] = useState(false)
-  const [editions, setEditions] = useState<Array<'fussball' | 'wissen' | 'romantisch' | 'gaming' | 'film'>>([
-    'wissen'
-  ])
-  const [lastEdition, setLastEdition] = useState<'fussball' | 'wissen' | 'romantisch' | 'gaming' | 'film'>('wissen')
+  const [editions, setEditions] = useState<EditionKey[]>(['wissen'])
+  const [lastEdition, setLastEdition] = useState<EditionKey>('wissen')
   const [showPremiumGate, setShowPremiumGate] = useState(false)
   const [pendingEdition, setPendingEdition] = useState<'gaming' | 'film' | null>(null)
   const isPremium = false
@@ -178,18 +177,20 @@ export default function App() {
     return combined.length ? combined : defaultEmojis
   }, [editions, screen])
 
-  const toggleEdition = (value: 'fussball' | 'wissen' | 'romantisch' | 'gaming' | 'film') => {
+  const toggleEdition = (value: EditionKey) => {
+    if (!isHost) return
     if ((value === 'gaming' || value === 'film') && !isPremium) {
       setPendingEdition(value)
       setShowPremiumGate(true)
       return
     }
     setLastEdition(value)
-    setEditions((prev) => {
+    const next = (() => {
+      const prev = editions
       const exists = prev.includes(value)
       if (exists) {
-        const next = prev.filter((item) => item !== value)
-        return next.length ? next : prev
+        const removed = prev.filter((item) => item !== value)
+        return removed.length ? removed : prev
       }
       if (prev.length >= maxEditions) {
         setShowPremiumGate(true)
@@ -197,7 +198,17 @@ export default function App() {
         return prev
       }
       return [...prev, value]
-    })
+    })()
+    setEditions(next)
+    if (roomState && socketRef.current) {
+      socketRef.current.emit('player-action', {
+        code: roomState.code,
+        action: {
+          type: 'host_set_editions',
+          editions: next
+        }
+      })
+    }
   }
 
   useEffect(() => {
@@ -234,6 +245,7 @@ export default function App() {
       setIsHost(room.hostId === playerIdRef.current)
       setRound(room.round)
       setRoundSeconds(room.roundSeconds ?? 60)
+      setEditions(room.selectedEditions ?? ['wissen'])
       if (room.mode) setCurrentGame(room.mode)
       setRoomPlayers(room.players)
       setScores(
