@@ -499,6 +499,57 @@ small,
   padding: 1rem 1.4rem;
   border: 2px solid rgba(255, 255, 255, 0.1);
 }
+
+.category-word-form {
+  width: 100%;
+  max-width: 560px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.category-word-row {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.category-word-index {
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: right;
+}
+
+.category-validation {
+  width: 100%;
+  max-width: 560px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.category-validate-row {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.category-validate-word {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 0.45rem 0.6rem;
+}
 .edition-picker {
   width: 100%;
   max-width: 980px;

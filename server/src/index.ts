@@ -38,6 +38,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, Record<string,
 
 const rooms = new Map<RoomCode, RoomState>()
 const awardedTokensByRoom = new Map<RoomCode, Set<string>>()
+const CATEGORY_MAX_BID = 12
 
 const generateCode = (): RoomCode => {
   const code = Math.floor(1000 + Math.random() * 9000).toString()
@@ -388,7 +389,7 @@ io.on('connection', (socket) => {
         return
       }
 
-      const bid = Math.max(1, Math.min(5, Math.floor(payload.action.bid)))
+      const bid = Math.max(1, Math.min(CATEGORY_MAX_BID, Math.floor(payload.action.bid)))
       room.roundSubmissions[socket.data.playerId] = `bid:${bid}`
 
       const allBids = requiredIds.every((id) => (room.roundSubmissions[id] ?? '').startsWith('bid:'))

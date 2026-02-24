@@ -44,7 +44,7 @@ export default function CategoryBattleGame({
   const prompt = prompts[contentSeed % prompts.length]
 
   const [localBid, setLocalBid] = useState(3)
-  const [wordsText, setWordsText] = useState('')
+  const [wordInputs, setWordInputs] = useState<string[]>([])
   const [secondsLeft, setSecondsLeft] = useState(20)
   const [checked, setChecked] = useState<Record<string, boolean>>({})
 
@@ -67,6 +67,12 @@ export default function CategoryBattleGame({
     () => guessLog.find((entry) => entry.value === 'category_winner')?.playerId ?? null,
     [guessLog]
   )
+  const winnerBid = useMemo(() => {
+    if (!winnerId) return 0
+    const raw = submissions[winnerId] ?? ''
+    if (!raw.startsWith('bid:')) return 0
+    return Math.max(1, Number(raw.split(':')[1] ?? 1))
+  }, [winnerId, submissions])
 
   const winnerWords = useMemo(() => {
     const raw = guessLog.find((entry) => entry.value.startsWith('category_words:'))?.value ?? ''
@@ -94,6 +100,29 @@ export default function CategoryBattleGame({
   const iAmWinner = Boolean(winnerId && winnerId === currentPlayerId)
 
   useEffect(() => {
+    if (!winnerBid) {
+      setWordInputs([])
+      return
+    }
+    setWordInputs((prev) =>
+      Array.from({ length: winnerBid }, (_, index) => prev[index] ?? '')
+    )
+  }, [winnerBid, round])
+
+  useEffect(() => {
+    if (!winnerWords.length) {
+      setChecked({})
+      return
+    }
+    setChecked(
+      winnerWords.reduce<Record<string, boolean>>((acc, word) => {
+        acc[word] = true
+        return acc
+      }, {})
+    )
+  }, [winnerWords])
+
+  useEffect(() => {
     if (!winnerId || winnerWords.length > 0 || result) return
     setSecondsLeft(20)
   }, [winnerId, winnerWords.length, result, round])
@@ -105,8 +134,7 @@ export default function CategoryBattleGame({
         if (prev <= 1) {
           window.clearInterval(timer)
           if (iAmWinner) {
-            const words = wordsText
-              .split(',')
+            const words = wordInputs
               .map((word) => word.trim())
               .filter(Boolean)
             onSubmitWords(words)
@@ -118,7 +146,7 @@ export default function CategoryBattleGame({
       })
     }, 1000)
     return () => window.clearInterval(timer)
-  }, [winnerId, winnerWords.length, result, iAmWinner, wordsText, onSubmitWords, onSubmitValue])
+  }, [winnerId, winnerWords.length, result, iAmWinner, wordInputs, onSubmitWords, onSubmitValue])
 
   useEffect(() => {
     if (!result) return
@@ -138,9 +166,9 @@ export default function CategoryBattleGame({
                 className="guess-input"
                 type="number"
                 min={1}
-                max={5}
+                max={12}
                 value={localBid}
-                onChange={(event) => setLocalBid(Math.max(1, Math.min(5, Number(event.target.value))))}
+                onChange={(event) => setLocalBid(Math.max(1, Math.min(12, Number(event.target.value))))}
               />
               <button className="btn btn-primary btn-sm" onClick={() => onSubmitBid(localBid)}>
                 Geheim bieten
@@ -174,20 +202,27 @@ export default function CategoryBattleGame({
       ) : null}
 
       {winnerId && iAmWinner && winnerWords.length === 0 ? (
-        <div className="guess-section">
-          <input
-            className="guess-input"
-            placeholder="Begriffe mit Komma trennen"
-            value={wordsText}
-            onChange={(event) => setWordsText(event.target.value)}
-          />
+        <div className="category-word-form">
+          <div className="tagline">Du hast mit {winnerBid} gewonnen. Trage jetzt bis zu {winnerBid} Begriffe ein.</div>
+          {wordInputs.map((word, index) => (
+            <div className="category-word-row" key={`input-${index}`}>
+              <span className="category-word-index">{index + 1}.</span>
+              <input
+                className="guess-input"
+                placeholder={`Begriff ${index + 1}`}
+                value={word}
+                onChange={(event) =>
+                  setWordInputs((prev) =>
+                    prev.map((entry, entryIndex) => (entryIndex === index ? event.target.value : entry))
+                  )
+                }
+              />
+            </div>
+          ))}
           <button
             className="btn btn-primary btn-sm"
             onClick={() => {
-              const words = wordsText
-                .split(',')
-                .map((word) => word.trim())
-                .filter(Boolean)
+              const words = wordInputs.map((word) => word.trim()).filter(Boolean)
               onSubmitWords(words)
               onSubmitValue(words.join(','))
             }}
@@ -202,18 +237,20 @@ export default function CategoryBattleGame({
       ) : null}
 
       {isHost && winnerWords.length > 0 && !result ? (
-        <div className="guesses-log">
-          {winnerWords.map((word) => (
-            <label key={word} className="guess-entry">
-              <input
-                type="checkbox"
-                checked={checked[word] ?? true}
-                onChange={(event) =>
-                  setChecked((prev) => ({ ...prev, [word]: event.target.checked }))
-                }
-              />{' '}
-              {word}
-            </label>
+        <div className="category-validation">
+          <div className="tagline">Host Validierung</div>
+          {winnerWords.map((word, index) => (
+            <div key={`${word}-${index}`} className="category-validate-row">
+              <span className="category-word-index">{index + 1}.</span>
+              <span className="category-validate-word">{word}</span>
+              <button
+                type="button"
+                className={`btn btn-sm ${checked[word] ?? true ? 'btn-secondary' : 'btn-back'}`}
+                onClick={() => setChecked((prev) => ({ ...prev, [word]: !(prev[word] ?? true) }))}
+              >
+                {(checked[word] ?? true) ? 'Gültig' : 'Ungültig'}
+              </button>
+            </div>
           ))}
           <button
             className="btn btn-yellow btn-sm"
