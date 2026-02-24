@@ -25,19 +25,6 @@ export default function EmojiRiddleGame({ players, round, editions, onRoundCompl
   }, [players, round])
 
   useEffect(() => {
-    const others = players.slice(1)
-    const timers = others.map((player, index) =>
-      window.setTimeout(() => {
-        setAnswers((prev) => ({
-          ...prev,
-          [player]: Math.random() > 0.4 ? riddle.answer : 'Falsch'
-        }))
-      }, 1200 + index * 900 + Math.random() * 1200)
-    )
-    return () => timers.forEach((id) => window.clearTimeout(id))
-  }, [players, riddle])
-
-  useEffect(() => {
     if (scoredRef.current) return
     const filled = players.every((p) => answers[p])
     if (!filled) return

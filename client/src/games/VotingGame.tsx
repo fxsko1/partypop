@@ -44,24 +44,6 @@ export default function VotingGame({ players, round, onRoundComplete, editions, 
   }
 
   useEffect(() => {
-    const others = players.slice(1)
-    const timers = others.map((player, index) =>
-      window.setTimeout(() => {
-        setVoted((prev) => ({ ...prev, [player]: true }))
-        if (!results) {
-          const votes: Record<string, number> = {}
-          players.forEach((p) => {
-            votes[p] = Math.floor(Math.random() * 10 + 1)
-          })
-          votes[player] += 5
-          setResults(votes)
-        }
-      }, 1800 + index * 900 + Math.random() * 900)
-    )
-    return () => timers.forEach((id) => window.clearTimeout(id))
-  }, [players, results, round])
-
-  useEffect(() => {
     const allVoted = players.length > 0 && players.every((p) => voted[p])
     if (allVoted) {
       const timeout = window.setTimeout(() => onRoundComplete(), 1200)

@@ -147,6 +147,10 @@ export default function App() {
     () => roomPlayers.filter((player) => player.connected).map((player) => player.name),
     [roomPlayers]
   )
+  const currentPlayerName = useMemo(() => {
+    const me = roomPlayers.find((player) => player.id === playerIdRef.current)
+    return me?.name ?? 'Du'
+  }, [roomPlayers])
   const backgroundEmojis = useMemo(() => {
     if (screen === 'home') return defaultEmojis
     const emojiMap = {
@@ -659,6 +663,7 @@ export default function App() {
                 onRoundComplete={endRound}
                 editions={editions}
                 onScore={addScore}
+                currentPlayerName={currentPlayerName}
               />
             )}
             {currentGame === 'voting' && (

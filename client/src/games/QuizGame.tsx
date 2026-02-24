@@ -62,19 +62,6 @@ export default function QuizGame({ players, round, onRoundComplete, editions, on
   }
 
   useEffect(() => {
-    const others = players.slice(1)
-    const timers = others.map((player, index) =>
-      window.setTimeout(() => {
-        setAnswered((prev) => ({ ...prev, [player]: true }))
-        if (Math.random() > 0.45) {
-          onScore(player, 100)
-        }
-      }, 1200 + index * 900 + Math.random() * 1200)
-    )
-    return () => timers.forEach((id) => window.clearTimeout(id))
-  }, [players, round, onScore])
-
-  useEffect(() => {
     const allAnswered = players.length > 0 && players.every((p) => answered[p])
     if (allAnswered) {
       const timeout = window.setTimeout(() => onRoundComplete(), 600)

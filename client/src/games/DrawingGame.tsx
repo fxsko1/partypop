@@ -9,27 +9,44 @@ type Props = {
   onRoundComplete: () => void
   editions: Edition[]
   onScore: (player: string, delta: number) => void
+  currentPlayerName: string
 }
 
-export default function DrawingGame({ players, round, onRoundComplete, editions, onScore }: Props) {
+export default function DrawingGame({
+  players,
+  round,
+  onRoundComplete,
+  editions,
+  onScore,
+  currentPlayerName
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const isDrawingRef = useRef(false)
+  const awardedRef = useRef<Record<string, boolean>>({})
+
   const [drawColor, setDrawColor] = useState('#1a0a2e')
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen')
   const [brushSize, setBrushSize] = useState(6)
-  const [word, setWord] = useState(() => {
-    const list = getDrawingWords(editions)
-    return list[Math.floor(Math.random() * list.length)]
-  })
+  const [word, setWord] = useState('')
+  const [guessInput, setGuessInput] = useState('')
   const [guesses, setGuesses] = useState<Array<{ player: string; guess: string; correct: boolean }>>([])
-  const awardedRef = useRef<Record<string, boolean>>({})
-  const isDrawingRef = useRef(false)
+  const [submitted, setSubmitted] = useState<Record<string, boolean>>({})
 
-  const drawerName = useMemo(() => players[0]?.split(' ')[0] ?? 'Du', [players])
+  const drawerName = useMemo(() => {
+    if (!players.length) return currentPlayerName
+    const idx = Math.max(round - 1, 0) % players.length
+    return players[idx]
+  }, [players, round, currentPlayerName])
+
+  const guessers = useMemo(() => players.filter((p) => p !== drawerName), [players, drawerName])
+  const isDrawer = currentPlayerName === drawerName
 
   useEffect(() => {
     const list = getDrawingWords(editions)
     setWord(list[Math.floor(Math.random() * list.length)])
     setGuesses([])
+    setGuessInput('')
+    setSubmitted({})
     awardedRef.current = {}
   }, [round, editions])
 
@@ -41,9 +58,9 @@ export default function DrawingGame({ players, round, onRoundComplete, editions,
     if (!ctx) return
     ctx.fillStyle = 'white'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
-  }, [])
+  }, [round])
 
-  const draw = (event: PointerEvent | MouseEvent | Touch) => {
+  const draw = (event: PointerEvent) => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -63,6 +80,7 @@ export default function DrawingGame({ players, round, onRoundComplete, editions,
   }
 
   const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawer) return
     isDrawingRef.current = true
     const ctx = canvasRef.current?.getContext('2d')
     ctx?.beginPath()
@@ -70,7 +88,7 @@ export default function DrawingGame({ players, round, onRoundComplete, editions,
   }
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawingRef.current) return
+    if (!isDrawer || !isDrawingRef.current) return
     draw(event.nativeEvent)
   }
 
@@ -79,6 +97,7 @@ export default function DrawingGame({ players, round, onRoundComplete, editions,
   }
 
   const clearCanvas = () => {
+    if (!isDrawer) return
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -87,51 +106,43 @@ export default function DrawingGame({ players, round, onRoundComplete, editions,
     ctx.fillRect(0, 0, canvas.width, canvas.height)
   }
 
-  const submitGuess = (value: string) => {
-    const guess = value.trim()
-    if (!guess) return
+  const submitGuess = () => {
+    if (isDrawer) return
+    const guess = guessInput.trim()
+    if (!guess || submitted[currentPlayerName]) return
     const correct = guess.toLowerCase() === word.toLowerCase()
-    setGuesses((prev) => [...prev, { player: 'Du', guess, correct }])
+    setGuesses((prev) => [...prev, { player: currentPlayerName, guess, correct }])
+    setSubmitted((prev) => ({ ...prev, [currentPlayerName]: true }))
+    setGuessInput('')
   }
 
   useEffect(() => {
-    const others = players.slice(1)
-    const timers = others.map((player, index) =>
-      window.setTimeout(() => {
-        setGuesses((prev) => [...prev, { player, guess: word, correct: true }])
-      }, 4500 + index * 1000 + Math.random() * 1200)
-    )
-    return () => timers.forEach((id) => window.clearTimeout(id))
-  }, [players, word, round])
-
-  useEffect(() => {
-    const correctPlayers = guesses.filter((g) => g.correct).map((g) => g.player)
-    const unique = Array.from(new Set(correctPlayers))
-    unique.forEach((player, index) => {
+    const correctPlayers = Array.from(new Set(guesses.filter((g) => g.correct).map((g) => g.player)))
+    correctPlayers.forEach((player, index) => {
       if (awardedRef.current[player]) return
-      const points = Math.max(100 - index * 20, 0)
-      onScore(player, points)
+      onScore(player, Math.max(100 - index * 20, 0))
       awardedRef.current[player] = true
     })
-  }, [guesses, onScore])
 
-  useEffect(() => {
-    const winners = new Set(guesses.filter((g) => g.correct).map((g) => g.player))
-    const allGuessed = players.length > 0 && players.every((p) => winners.has(p))
-    if (allGuessed) {
+    if (guessers.length > 0 && guessers.every((guesser) => correctPlayers.includes(guesser))) {
+      if (!awardedRef.current[drawerName]) {
+        onScore(drawerName, 100)
+        awardedRef.current[drawerName] = true
+      }
       const timeout = window.setTimeout(() => onRoundComplete(), 600)
       return () => window.clearTimeout(timeout)
     }
-  }, [guesses, players, onRoundComplete])
+  }, [guesses, guessers, drawerName, onScore, onRoundComplete])
 
   return (
     <div id="drawing-game" className="game-stage">
       <div className="drawing-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: 600 }}>
-          <div>🎨 <strong>{drawerName}</strong> zeichnet...</div>
-          <div className="word-display">{word}</div>
+          <div>🎨 <strong>{drawerName.split(' ')[0]}</strong> zeichnet...</div>
+          <div className="word-display">{isDrawer ? word : '???'}</div>
         </div>
       </div>
+
       <div className="canvas-wrap">
         <canvas
           ref={canvasRef}
@@ -143,66 +154,62 @@ export default function DrawingGame({ players, round, onRoundComplete, editions,
           onPointerLeave={handlePointerUp}
         />
       </div>
-      <div className="drawing-tools">
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-          {colors.map((color) => (
-            <button
-              key={color}
-              type="button"
-              className={`color-btn${drawColor === color ? ' active' : ''}`}
-              style={{ background: color, border: color === '#ffffff' ? '3px solid rgba(255,255,255,0.3)' : undefined }}
-              onClick={() => {
-                setDrawColor(color)
-                setTool('pen')
-              }}
-            />
-          ))}
+
+      {isDrawer ? (
+        <div className="drawing-tools">
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            {colors.map((color) => (
+              <button
+                key={color}
+                type="button"
+                className={`color-btn${drawColor === color ? ' active' : ''}`}
+                style={{ background: color, border: color === '#ffffff' ? '3px solid rgba(255,255,255,0.3)' : undefined }}
+                onClick={() => {
+                  setDrawColor(color)
+                  setTool('pen')
+                }}
+              />
+            ))}
+          </div>
+          <input
+            type="range"
+            className="size-slider"
+            min={2}
+            max={30}
+            value={brushSize}
+            onChange={(event) => setBrushSize(Number(event.target.value))}
+          />
+          <button className={`tool-btn${tool === 'pen' ? ' active' : ''}`} onClick={() => setTool('pen')}>
+            ✏️
+          </button>
+          <button className={`tool-btn${tool === 'eraser' ? ' active' : ''}`} onClick={() => setTool('eraser')}>
+            🧹
+          </button>
+          <button className="tool-btn" onClick={clearCanvas}>
+            🗑️
+          </button>
         </div>
-        <input
-          type="range"
-          className="size-slider"
-          min={2}
-          max={30}
-          value={brushSize}
-          onChange={(event) => setBrushSize(Number(event.target.value))}
-        />
-        <button className={`tool-btn${tool === 'pen' ? ' active' : ''}`} onClick={() => setTool('pen')}>
-          ✏️
-        </button>
-        <button className={`tool-btn${tool === 'eraser' ? ' active' : ''}`} onClick={() => setTool('eraser')}>
-          🧹
-        </button>
-        <button className="tool-btn" onClick={clearCanvas}>
-          🗑️
-        </button>
-      </div>
-      <div className="guess-section">
-        <input
-          className="guess-input"
-          placeholder="Was wird gezeichnet?"
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              submitGuess((event.target as HTMLInputElement).value)
-              ;(event.target as HTMLInputElement).value = ''
-            }
-          }}
-        />
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={() => {
-            const input = document.querySelector<HTMLInputElement>('.guess-input')
-            if (!input) return
-            submitGuess(input.value)
-            input.value = ''
-          }}
-        >
-          Raten!
-        </button>
-      </div>
+      ) : (
+        <div className="guess-section">
+          <input
+            className="guess-input"
+            placeholder="Was wird gezeichnet?"
+            value={guessInput}
+            onChange={(event) => setGuessInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') submitGuess()
+            }}
+          />
+          <button className="btn btn-primary btn-sm" onClick={submitGuess}>
+            Raten!
+          </button>
+        </div>
+      )}
+
       <div className="guesses-log">
         {guesses.map((entry, index) => (
           <div key={`${entry.player}-${index}`} className={`guess-entry${entry.correct ? ' correct-guess' : ''}`}>
-            {entry.correct ? `✅ ${entry.player} hat es erraten: "${entry.guess}"! 🎉` : `${entry.player}: ${entry.guess}`}
+            {entry.correct ? `✅ ${entry.player} hat es erraten: "${entry.guess}"!` : `${entry.player}: ${entry.guess}`}
           </div>
         ))}
       </div>

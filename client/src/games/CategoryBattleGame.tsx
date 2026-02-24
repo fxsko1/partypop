@@ -25,20 +25,6 @@ export default function CategoryBattleGame({ players, round, editions, onRoundCo
   }, [players, round])
 
   useEffect(() => {
-    const others = players.slice(1)
-    const timers = others.map((player, index) =>
-      window.setTimeout(() => {
-        const samples = ['Banane', 'Baum', 'Bier', 'Brot', 'Ball']
-        setAnswers((prev) => ({
-          ...prev,
-          [player]: samples[(index + round) % samples.length]
-        }))
-      }, 1400 + index * 900 + Math.random() * 900)
-    )
-    return () => timers.forEach((id) => window.clearTimeout(id))
-  }, [players, round])
-
-  useEffect(() => {
     if (scoredRef.current) return
     const filled = players.every((p) => answers[p])
     if (!filled) return
