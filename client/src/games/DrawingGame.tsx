@@ -34,6 +34,8 @@ export default function DrawingGame({
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const isDrawingRef = useRef(false)
+  const lastBroadcastRef = useRef(0)
+  const lastRemoteImageRef = useRef('')
   const awardedRef = useRef<Record<string, boolean>>({})
 
   const [drawColor, setDrawColor] = useState('#1a0a2e')
@@ -60,6 +62,8 @@ export default function DrawingGame({
     setGuessInput('')
     setHint('')
     awardedRef.current = {}
+    lastRemoteImageRef.current = ''
+    lastBroadcastRef.current = 0
   }, [round, editions, contentSeed])
 
   useEffect(() => {
@@ -97,11 +101,23 @@ export default function DrawingGame({
     const ctx = canvasRef.current?.getContext('2d')
     ctx?.beginPath()
     draw(event.nativeEvent)
+    const canvas = canvasRef.current
+    if (canvas) {
+      onSubmitCanvas(canvas.toDataURL('image/png'))
+      lastBroadcastRef.current = Date.now()
+    }
   }
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawer || !isDrawingRef.current) return
     draw(event.nativeEvent)
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const now = Date.now()
+    if (now - lastBroadcastRef.current > 80) {
+      onSubmitCanvas(canvas.toDataURL('image/png'))
+      lastBroadcastRef.current = now
+    }
   }
 
   const handlePointerUp = () => {
@@ -155,7 +171,8 @@ export default function DrawingGame({
   useEffect(() => {
     if (isDrawer) return
     const imageData = submissions.__drawing_canvas
-    if (!imageData) return
+    if (!imageData || imageData === lastRemoteImageRef.current) return
+    lastRemoteImageRef.current = imageData
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')

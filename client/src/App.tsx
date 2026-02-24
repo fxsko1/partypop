@@ -488,6 +488,7 @@ export default function App() {
 
   useEffect(() => {
     if (!roomState || roomState.phase !== 'in_game') return
+    if (screen !== 'game') return
     if (roomState.mode === 'category' || roomState.mode === 'emoji') return
     const connected = roomPlayers.filter((p) => p.connected)
     if (!connected.length) return
@@ -510,7 +511,7 @@ export default function App() {
       autoAdvancedKeyRef.current = key
       endRound()
     }
-  }, [roomState, roomPlayers])
+  }, [roomState, roomPlayers, screen])
 
   return (
     <div className="screen active" id={screen}>
