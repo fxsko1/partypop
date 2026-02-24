@@ -9,7 +9,7 @@ type Props = {
   editions: Edition[]
   onScore: (player: string, delta: number) => void
   contentSeed: number
-  onSubmitAnswer: (answerIndex: number) => void
+  onSubmitAnswer: (answerIndex: number, isCorrect: boolean) => void
   submissions: Record<string, string>
   playerNameById: Record<string, string>
   currentPlayerName: string
@@ -68,7 +68,7 @@ export default function QuizGame({
     setSelected(idx)
     const playerKey = currentPlayerName
     setAnswered((prev) => ({ ...prev, [playerKey]: true }))
-    onSubmitAnswer(idx)
+    onSubmitAnswer(idx, idx === question.correct)
     if (idx === question.correct) {
       setScores((prev) => ({
         ...prev,

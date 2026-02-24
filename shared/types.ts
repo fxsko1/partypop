@@ -71,6 +71,7 @@ export type PlayerAction =
   | {
       type: 'quiz_submit'
       answerIndex: number
+      isCorrect: boolean
     }
   | {
       type: 'voting_submit'

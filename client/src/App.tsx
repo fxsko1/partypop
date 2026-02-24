@@ -301,49 +301,9 @@ export default function App() {
     }
   }, [])
 
-  const addScore = (player: string, delta: number) => {
-    if (!isHost || !roomState || !socketRef.current) return
-    const target = roomState.players.find((p) => p.name === player)
-    if (!target) return
-    socketRef.current.emit('player-action', {
-      code: roomState.code,
-      action: {
-        type: 'score_delta',
-        updates: [{ playerId: target.id, delta }]
-      }
-    })
-    setScores((prev) => ({
-      ...prev,
-      [player]: (prev[player] ?? 0) + delta
-    }))
-  }
+  const addScore = (_player: string, _delta: number) => {}
 
-  const addScores = (items: Array<{ player: string; delta: number }>) => {
-    if (!isHost || !roomState || !socketRef.current) return
-    const updates = items
-      .map(({ player, delta }) => {
-        const target = roomState.players.find((p) => p.name === player)
-        if (!target) return null
-        return { playerId: target.id, delta }
-      })
-      .filter((item): item is { playerId: string; delta: number } => Boolean(item))
-    if (updates.length) {
-      socketRef.current.emit('player-action', {
-        code: roomState.code,
-        action: {
-          type: 'score_delta',
-          updates
-        }
-      })
-    }
-    setScores((prev) => {
-      const next = { ...prev }
-      items.forEach(({ player, delta }) => {
-        next[player] = (next[player] ?? 0) + delta
-      })
-      return next
-    })
-  }
+  const addScores = (_items: Array<{ player: string; delta: number }>) => {}
 
   useEffect(() => {
     if (roomCode === '----') return
@@ -434,11 +394,11 @@ export default function App() {
     })
   }
 
-  const submitQuiz = (answerIndex: number) => {
+  const submitQuiz = (answerIndex: number, isCorrect: boolean) => {
     if (!roomState || !socketRef.current) return
     socketRef.current.emit('player-action', {
       code: roomState.code,
-      action: { type: 'quiz_submit', answerIndex }
+      action: { type: 'quiz_submit', answerIndex, isCorrect }
     })
   }
 

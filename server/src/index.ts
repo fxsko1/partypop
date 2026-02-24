@@ -37,6 +37,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, Record<string,
 )
 
 const rooms = new Map<RoomCode, RoomState>()
+const awardedTokensByRoom = new Map<RoomCode, Set<string>>()
 
 const generateCode = (): RoomCode => {
   const code = Math.floor(1000 + Math.random() * 9000).toString()
@@ -68,6 +69,24 @@ const emitError = (socketId: string, error: ServerError) => {
   io.to(socketId).emit('error', error)
 }
 
+const resetRoundAwards = (roomCode: RoomCode) => {
+  awardedTokensByRoom.set(roomCode, new Set<string>())
+}
+
+const getRoundAwards = (roomCode: RoomCode) => {
+  const existing = awardedTokensByRoom.get(roomCode)
+  if (existing) return existing
+  const created = new Set<string>()
+  awardedTokensByRoom.set(roomCode, created)
+  return created
+}
+
+const addScore = (room: RoomState, playerId: string, delta: number) => {
+  const player = room.players.find((p) => p.id === playerId)
+  if (!player) return
+  player.score += delta
+}
+
 io.on('connection', (socket) => {
   const handleLeave = () => {
     const { roomCode, playerId } = socket.data
@@ -82,6 +101,7 @@ io.on('connection', (socket) => {
         message: 'Host hat den Raum verlassen. Lobby wurde geschlossen.'
       })
       rooms.delete(room.code)
+      awardedTokensByRoom.delete(room.code)
       socket.leave(room.code)
       socket.data.playerId = undefined
       socket.data.roomCode = undefined
@@ -109,6 +129,7 @@ io.on('connection', (socket) => {
       }
       const room = createRoomState(newCode, host)
       rooms.set(newCode, room)
+      resetRoundAwards(newCode)
       socket.join(newCode)
       socket.data.playerId = host.id
       socket.data.roomCode = newCode
@@ -172,6 +193,7 @@ io.on('connection', (socket) => {
     room.round = 1
     room.roundSubmissions = {}
     room.roundGuessLog = []
+    resetRoundAwards(room.code)
     emitRoomUpdate(room)
   })
 
@@ -206,6 +228,7 @@ io.on('connection', (socket) => {
       room.phase = payload.action.finished ? 'session_end' : 'in_game'
       room.roundSubmissions = {}
       room.roundGuessLog = []
+      resetRoundAwards(room.code)
       emitRoomUpdate(room)
       return
     }
@@ -234,6 +257,14 @@ io.on('connection', (socket) => {
     if (payload.action.type === 'quiz_submit') {
       if (!socket.data.playerId) return
       room.roundSubmissions[socket.data.playerId] = String(payload.action.answerIndex)
+      const awards = getRoundAwards(room.code)
+      if (payload.action.isCorrect) {
+        const token = `quiz:${room.round}:${socket.data.playerId}`
+        if (!awards.has(token)) {
+          addScore(room, socket.data.playerId, 100)
+          awards.add(token)
+        }
+      }
       emitRoomUpdate(room)
       return
     }
@@ -241,6 +272,19 @@ io.on('connection', (socket) => {
     if (payload.action.type === 'voting_submit') {
       if (!socket.data.playerId) return
       room.roundSubmissions[socket.data.playerId] = payload.action.targetPlayerId
+      const connected = room.players.filter((p) => p.connected)
+      const submitted = Object.keys(room.roundSubmissions).length
+      const awards = getRoundAwards(room.code)
+      const finalizeToken = `voting:final:${room.round}`
+      if (submitted >= connected.length && !awards.has(finalizeToken)) {
+        const selected = new Set(Object.values(room.roundSubmissions))
+        connected.forEach((player) => {
+          if (!selected.has(player.id)) {
+            addScore(room, player.id, 50)
+          }
+        })
+        awards.add(finalizeToken)
+      }
       emitRoomUpdate(room)
       return
     }
@@ -254,6 +298,31 @@ io.on('connection', (socket) => {
       })
       if (payload.action.correct) {
         room.roundSubmissions[socket.data.playerId] = payload.action.guess
+        const awards = getRoundAwards(room.code)
+        const correctOrder = Array.from(
+          new Set(
+            room.roundGuessLog
+              .filter((entry) => entry.correct)
+              .map((entry) => entry.playerId)
+          )
+        )
+        const idx = correctOrder.indexOf(socket.data.playerId)
+        if (idx >= 0) {
+          const guesserToken = `drawing:guesser:${room.round}:${socket.data.playerId}`
+          if (!awards.has(guesserToken)) {
+            addScore(room, socket.data.playerId, Math.max(100 - idx * 20, 0))
+            awards.add(guesserToken)
+          }
+          const connected = room.players.filter((p) => p.connected)
+          if (connected.length > 0) {
+            const drawer = connected[Math.max(room.round - 1, 0) % connected.length]
+            const drawerToken = `drawing:drawer:${room.round}:${socket.data.playerId}`
+            if (!awards.has(drawerToken)) {
+              addScore(room, drawer.id, 40)
+              awards.add(drawerToken)
+            }
+          }
+        }
       }
       emitRoomUpdate(room)
       return
@@ -267,6 +336,22 @@ io.on('connection', (socket) => {
         correct: payload.action.correct
       })
       room.roundSubmissions[socket.data.playerId] = payload.action.guess
+      if (payload.action.correct) {
+        const awards = getRoundAwards(room.code)
+        const correctOrder = Array.from(
+          new Set(
+            room.roundGuessLog
+              .filter((entry) => entry.correct)
+              .map((entry) => entry.playerId)
+          )
+        )
+        const idx = correctOrder.indexOf(socket.data.playerId)
+        const token = `emoji:${room.round}:${socket.data.playerId}`
+        if (!awards.has(token)) {
+          addScore(room, socket.data.playerId, Math.max(120 - idx * 20, 40))
+          awards.add(token)
+        }
+      }
       emitRoomUpdate(room)
       return
     }
@@ -274,6 +359,29 @@ io.on('connection', (socket) => {
     if (payload.action.type === 'category_submit') {
       if (!socket.data.playerId) return
       room.roundSubmissions[socket.data.playerId] = payload.action.value
+      const connected = room.players.filter((p) => p.connected)
+      const submitted = Object.keys(room.roundSubmissions).length
+      const awards = getRoundAwards(room.code)
+      const finalizeToken = `category:final:${room.round}`
+      if (submitted >= connected.length && !awards.has(finalizeToken)) {
+        const normalized = connected
+          .map((player) => ({
+            playerId: player.id,
+            value: (room.roundSubmissions[player.id] ?? '').trim().toLowerCase()
+          }))
+        const counts = new Map<string, number>()
+        normalized.forEach(({ value }) => {
+          if (!value) return
+          counts.set(value, (counts.get(value) ?? 0) + 1)
+        })
+        normalized.forEach(({ playerId, value }) => {
+          if (!value) return
+          if ((counts.get(value) ?? 0) === 1) {
+            addScore(room, playerId, 80)
+          }
+        })
+        awards.add(finalizeToken)
+      }
       emitRoomUpdate(room)
       return
     }
