@@ -167,6 +167,9 @@ export default function DrawingGame({
           <div>🎨 <strong>{drawerName.split(' ')[0]}</strong> zeichnet...</div>
           <div className="word-display">{isDrawer ? word : '???'}</div>
         </div>
+        <div className="tagline" style={{ marginTop: 8 }}>
+          {isDrawer ? 'Du zeichnest' : 'Du errätst'}
+        </div>
       </div>
 
       <div className="canvas-wrap">

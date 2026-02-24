@@ -12,6 +12,8 @@ type Props = {
   submissions: Record<string, string>
   playerNameById: Record<string, string>
   currentPlayerName: string
+  currentPlayerId: string
+  activePlayerIds: string[]
 }
 
 export default function VotingGame({
@@ -24,7 +26,9 @@ export default function VotingGame({
   onSubmitVote,
   submissions,
   playerNameById,
-  currentPlayerName
+  currentPlayerName,
+  currentPlayerId,
+  activePlayerIds
 }: Props) {
   const [results, setResults] = useState<Record<string, number> | null>(null)
   const [voted, setVoted] = useState<Record<string, boolean>>({})
@@ -49,7 +53,7 @@ export default function VotingGame({
   }, [players, round, editions])
 
   const vote = (player: string) => {
-    if (voted[currentPlayerName]) return
+    if (currentPlayerId && submissions[currentPlayerId] !== undefined) return
     onSubmitVote(player)
     setVoted((prev) => ({ ...prev, [currentPlayerName]: true }))
   }
@@ -75,16 +79,19 @@ export default function VotingGame({
     setResults(tally)
   }, [submissions, players, playerNameById])
 
+  const allVoted = useMemo(() => {
+    if (!activePlayerIds.length) return false
+    return activePlayerIds.every((id) => submissions[id] !== undefined)
+  }, [activePlayerIds, submissions])
+
   useEffect(() => {
-    const allVoted = players.length > 0 && players.every((p) => voted[p])
     if (allVoted) {
       const timeout = window.setTimeout(() => onRoundComplete(), 1200)
       return () => window.clearTimeout(timeout)
     }
-  }, [voted, players, onRoundComplete])
+  }, [allVoted, onRoundComplete])
 
   useEffect(() => {
-    const allVoted = players.length > 0 && players.every((p) => voted[p])
     if (!results || scoredRef.current || !allVoted) return
     const sorted = Object.entries(results).sort((a, b) => b[1] - a[1])
     const chosen = sorted[0]?.[0]

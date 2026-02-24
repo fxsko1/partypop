@@ -162,6 +162,14 @@ export default function App() {
     const me = roomPlayers.find((player) => player.id === playerIdRef.current)
     return me?.name ?? 'Du'
   }, [roomPlayers])
+  const currentPlayerId = useMemo(() => {
+    const me = roomPlayers.find((player) => player.id === playerIdRef.current)
+    return me?.id ?? ''
+  }, [roomPlayers])
+  const activePlayerIds = useMemo(
+    () => roomPlayers.filter((player) => player.connected).map((player) => player.id),
+    [roomPlayers]
+  )
   const playerNameById = useMemo(
     () =>
       roomPlayers.reduce<Record<string, string>>((acc, player) => {
@@ -758,6 +766,8 @@ export default function App() {
                 submissions={roomState?.roundSubmissions ?? {}}
                 playerNameById={playerNameById}
                 currentPlayerName={currentPlayerName}
+                currentPlayerId={currentPlayerId}
+                activePlayerIds={activePlayerIds}
               />
             )}
             {currentGame === 'drawing' && (
@@ -786,6 +796,8 @@ export default function App() {
                 submissions={roomState?.roundSubmissions ?? {}}
                 playerNameById={playerNameById}
                 currentPlayerName={currentPlayerName}
+                currentPlayerId={currentPlayerId}
+                activePlayerIds={activePlayerIds}
               />
             )}
             {currentGame === 'emoji' && (
@@ -815,13 +827,7 @@ export default function App() {
                 currentPlayerName={currentPlayerName}
               />
             )}
-            {isHost ? (
-              <button className="btn btn-yellow" onClick={nextRound}>
-                {round >= 10 ? 'Beenden' : 'Nächste Runde'}
-              </button>
-            ) : (
-              <div className="tagline">Nur der Host kann die nächste Runde starten.</div>
-            )}
+            <div className="tagline">Die nächste Runde startet automatisch.</div>
           </div>
         </>
       ) : screen === 'sessionEnd' ? (

@@ -13,6 +13,8 @@ type Props = {
   submissions: Record<string, string>
   playerNameById: Record<string, string>
   currentPlayerName: string
+  currentPlayerId: string
+  activePlayerIds: string[]
 }
 
 export default function QuizGame({
@@ -25,10 +27,11 @@ export default function QuizGame({
   onSubmitAnswer,
   submissions,
   playerNameById,
-  currentPlayerName
+  currentPlayerName,
+  currentPlayerId,
+  activePlayerIds
 }: Props) {
   const [selected, setSelected] = useState<number | null>(null)
-  const [answered, setAnswered] = useState<Record<string, boolean>>({})
   const [scores, setScores] = useState<Record<string, number>>({})
 
   useEffect(() => {
@@ -40,13 +43,8 @@ export default function QuizGame({
   }, [players, round])
 
   useEffect(() => {
-    const initial: Record<string, boolean> = {}
-    players.forEach((p) => {
-      initial[p] = false
-    })
-    setAnswered(initial)
     setSelected(null)
-  }, [players, round])
+  }, [round])
 
   const question = useMemo(() => {
     const list = getQuizQuestions(editions)
@@ -64,10 +62,9 @@ export default function QuizGame({
   )
 
   const selectAnswer = (idx: number) => {
-    if (answered[currentPlayerName]) return
+    if (currentPlayerId && submissions[currentPlayerId] !== undefined) return
     setSelected(idx)
     const playerKey = currentPlayerName
-    setAnswered((prev) => ({ ...prev, [playerKey]: true }))
     onSubmitAnswer(idx, idx === question.correct)
     if (idx === question.correct) {
       setScores((prev) => ({
@@ -78,23 +75,17 @@ export default function QuizGame({
     }
   }
 
-  useEffect(() => {
-    const fromSubmissions: Record<string, boolean> = {}
-    players.forEach((p) => {
-      fromSubmissions[p] = Object.values(playerNameById).includes(p)
-        ? Object.entries(playerNameById).some(([id, name]) => name === p && submissions[id] !== undefined)
-        : false
-    })
-    setAnswered((prev) => ({ ...prev, ...fromSubmissions }))
-  }, [submissions, players, playerNameById])
+  const allAnswered = useMemo(() => {
+    if (!activePlayerIds.length) return false
+    return activePlayerIds.every((id) => submissions[id] !== undefined)
+  }, [activePlayerIds, submissions])
 
   useEffect(() => {
-    const allAnswered = players.length > 0 && players.every((p) => answered[p])
     if (allAnswered) {
       const timeout = window.setTimeout(() => onRoundComplete(), 2500)
       return () => window.clearTimeout(timeout)
     }
-  }, [answered, players, onRoundComplete])
+  }, [allAnswered, onRoundComplete])
 
   return (
     <div id="quiz-game" className="game-stage">
@@ -120,7 +111,7 @@ export default function QuizGame({
           )
         })}
       </div>
-      {players.length > 0 && players.every((p) => answered[p]) ? (
+      {allAnswered ? (
         <div className="guesses-log">
           {players.map((player) => {
             const pickedRaw = Object.entries(playerNameById).find(([, name]) => name === player)?.[0]
