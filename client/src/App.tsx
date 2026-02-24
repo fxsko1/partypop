@@ -87,8 +87,11 @@ export default function App() {
   >('quiz')
   const [isHost, setIsHost] = useState(false)
   const [connectionError, setConnectionError] = useState('')
+  const [leaveNotice, setLeaveNotice] = useState('')
   const [timeLeft, setTimeLeft] = useState(60)
+  const [roundSeconds, setRoundSeconds] = useState(60)
   const roundCompleteRef = useRef(false)
+  const lastConnectedIdsRef = useRef<string[]>([])
 
   const games = useMemo(
     () =>
@@ -203,10 +206,23 @@ export default function App() {
     socketRef.current = socket
 
     const applyRoomState = (room: RoomState) => {
+      const currentConnectedIds = room.players.filter((player) => player.connected).map((player) => player.id)
+      if (lastConnectedIdsRef.current.length > 0) {
+        const leftPlayer = room.players.find(
+          (player) => !player.connected && lastConnectedIdsRef.current.includes(player.id)
+        )
+        if (leftPlayer && playerIdRef.current !== leftPlayer.id) {
+          setLeaveNotice(`${leftPlayer.name} hat den Raum verlassen.`)
+          window.setTimeout(() => setLeaveNotice(''), 3000)
+        }
+      }
+      lastConnectedIdsRef.current = currentConnectedIds
+
       setRoomState(room)
       setRoomCode(room.code)
       setIsHost(room.hostId === playerIdRef.current)
       setRound(room.round)
+      setRoundSeconds(room.roundSeconds ?? 60)
       if (room.mode) setCurrentGame(room.mode)
       setRoomPlayers(room.players)
       setScores(
@@ -304,7 +320,7 @@ export default function App() {
   useEffect(() => {
     if (screen !== 'game') return
     roundCompleteRef.current = false
-    setTimeLeft(60)
+    setTimeLeft(roundSeconds)
     const timer = window.setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -316,7 +332,7 @@ export default function App() {
       })
     }, 1000)
     return () => window.clearInterval(timer)
-  }, [screen, round, currentGame])
+  }, [screen, round, currentGame, roundSeconds])
 
   useEffect(() => {
     if (screen !== 'home' && screen !== 'join') return
@@ -358,6 +374,18 @@ export default function App() {
       playerId: playerIdRef.current
     }
     socket.emit('join-room', payload)
+  }
+
+  const updateRoundSeconds = (value: number) => {
+    if (!socketRef.current || !roomState || !isHost) return
+    setRoundSeconds(value)
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: {
+        type: 'host_set_round_seconds',
+        roundSeconds: value
+      }
+    })
   }
 
   return (
@@ -610,15 +638,16 @@ export default function App() {
             ← Zurück
           </button>
           <div className="scoreboard">
-            {roomPlayers.map((player) => (
+            {roomPlayers.filter((player) => player.connected).map((player) => (
               <div key={player.id} className="score-chip">
-                👤 {player.name.split(' ')[0]}
-                {!player.connected ? ' (raus)' : ''}: <strong>{scores[player.name] ?? 0}</strong>
+                👤 {player.name.split(' ')[0]}: <strong>{scores[player.name] ?? 0}</strong>
               </div>
             ))}
           </div>
           <div className="game-shell">
-            <div className="game-round">Runde {round} / 10 · {timeLeft}s</div>
+            <div className="game-round" style={{ fontSize: '1.4rem', fontWeight: 800 }}>
+              Runde {round} / 10 · ⏱ {timeLeft}s
+            </div>
             <div className="game-title">
               {currentGame === 'quiz' && '🧠 Quiz'}
               {currentGame === 'drawing' && '🎨 Drawing'}
@@ -730,21 +759,40 @@ export default function App() {
           </div>
           <div className="players-list">
             <h3>
-              👥 Spieler (<span>{activePlayers.length}</span>/<span>{roomPlayers.length}</span>)
+              👥 Spieler (<span>{activePlayers.length}</span>)
             </h3>
             <div className="player-chips">
-              {roomPlayers.length === 0 ? (
+              {activePlayers.length === 0 ? (
                 <div className="player-empty">Warte auf Spieler…</div>
               ) : (
-                roomPlayers.map((player) => (
+                roomPlayers
+                  .filter((player) => player.connected)
+                  .map((player) => (
                   <div key={player.id} className="player-chip">
                     {player.name}
-                    {!player.connected ? ' (raus)' : ''}
                   </div>
                 ))
               )}
             </div>
           </div>
+          {isHost ? (
+            <div style={{ width: '100%', maxWidth: 360 }}>
+              <label htmlFor="round-seconds" className="tagline">
+                Rundenzeit: {roundSeconds}s
+              </label>
+              <input
+                id="round-seconds"
+                type="range"
+                min={20}
+                max={180}
+                step={10}
+                value={roundSeconds}
+                onChange={(event) => updateRoundSeconds(Number(event.target.value))}
+                style={{ width: '100%' }}
+              />
+            </div>
+          ) : null}
+          {leaveNotice ? <p className="tagline" style={{ color: '#ff6b6b' }}>{leaveNotice}</p> : null}
           {connectionError ? <p className="tagline">{connectionError}</p> : null}
           <button
             className="btn btn-yellow"

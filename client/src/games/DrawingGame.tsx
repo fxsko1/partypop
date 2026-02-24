@@ -128,13 +128,13 @@ export default function DrawingGame({
       if (awardedRef.current[player]) return
       onScore(player, Math.max(100 - index * 20, 0))
       awardedRef.current[player] = true
+      if (!awardedRef.current[`drawer-bonus-${player}`]) {
+        onScore(drawerName, 40)
+        awardedRef.current[`drawer-bonus-${player}`] = true
+      }
     })
 
     if (guessers.length > 0 && guessers.every((guesser) => correctPlayers.includes(guesser))) {
-      if (!awardedRef.current[drawerName]) {
-        onScore(drawerName, 100)
-        awardedRef.current[drawerName] = true
-      }
       const timeout = window.setTimeout(() => onRoundComplete(), 600)
       return () => window.clearTimeout(timeout)
     }

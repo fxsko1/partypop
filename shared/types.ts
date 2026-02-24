@@ -20,6 +20,7 @@ export interface RoomState {
   phase: GamePhase
   round: number
   maxRounds: number
+  roundSeconds: number
   players: Player[]
   freePlaysRemaining: number
   createdAt: number
@@ -50,6 +51,10 @@ export type PlayerAction =
       round: number
       nextMode: GameMode
       finished?: boolean
+    }
+  | {
+      type: 'host_set_round_seconds'
+      roundSeconds: number
     }
   | {
       type: 'quiz_answer'

@@ -13,6 +13,7 @@ type Props = {
 export default function QuizGame({ players, round, onRoundComplete, editions, onScore }: Props) {
   const [selected, setSelected] = useState<number | null>(null)
   const [answered, setAnswered] = useState<Record<string, boolean>>({})
+  const [selectedByPlayer, setSelectedByPlayer] = useState<Record<string, number | null>>({})
   const [scores, setScores] = useState<Record<string, number>>({})
   const [questionIndex, setQuestionIndex] = useState(0)
   const lastQuestionIndexRef = useRef<number | null>(null)
@@ -27,10 +28,13 @@ export default function QuizGame({ players, round, onRoundComplete, editions, on
 
   useEffect(() => {
     const initial: Record<string, boolean> = {}
+    const picks: Record<string, number | null> = {}
     players.forEach((p) => {
       initial[p] = false
+      picks[p] = null
     })
     setAnswered(initial)
+    setSelectedByPlayer(picks)
     setSelected(null)
   }, [players, round])
 
@@ -65,6 +69,7 @@ export default function QuizGame({ players, round, onRoundComplete, editions, on
     setSelected(idx)
     const playerKey = players[0] ?? 'Du'
     setAnswered((prev) => ({ ...prev, [playerKey]: true }))
+    setSelectedByPlayer((prev) => ({ ...prev, [playerKey]: idx }))
     if (idx === question.correct) {
       setScores((prev) => ({
         ...prev,
@@ -106,6 +111,19 @@ export default function QuizGame({ players, round, onRoundComplete, editions, on
           )
         })}
       </div>
+      {players.length > 0 && players.every((p) => answered[p]) ? (
+        <div className="guesses-log">
+          {players.map((player) => {
+            const pickedIndex = selectedByPlayer[player]
+            const pickedText = pickedIndex !== null && pickedIndex !== undefined ? question.answers[pickedIndex] : 'Keine Antwort'
+            return (
+              <div key={player} className={`guess-entry${pickedIndex === question.correct ? ' correct-guess' : ''}`}>
+                {player}: {pickedText}
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
     </div>
   )
 }

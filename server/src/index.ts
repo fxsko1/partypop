@@ -50,6 +50,7 @@ const createRoomState = (code: RoomCode, host: Player): RoomState => ({
   phase: 'lobby',
   round: 0,
   maxRounds: 10,
+  roundSeconds: 60,
   players: [host],
   freePlaysRemaining: 3,
   createdAt: Date.now()
@@ -160,6 +161,17 @@ io.on('connection', (socket) => {
       room.round = payload.action.round
       room.mode = payload.action.nextMode
       room.phase = payload.action.finished ? 'session_end' : 'in_game'
+      emitRoomUpdate(room)
+      return
+    }
+
+    if (payload.action.type === 'host_set_round_seconds') {
+      if (socket.data.playerId !== room.hostId) {
+        emitError(socket.id, { code: 'INVALID_PAYLOAD', message: 'Nur der Host kann die Zeit ändern.' })
+        return
+      }
+      const seconds = Math.max(20, Math.min(180, Math.floor(payload.action.roundSeconds)))
+      room.roundSeconds = seconds
       emitRoomUpdate(room)
       return
     }
