@@ -484,6 +484,7 @@ export const votingQuestions: Record<Edition, string[]> = {
 }
 
 export type EmojiRiddle = { emoji: string; answer: string }
+export type EmojiRiddleWithEdition = EmojiRiddle & { edition: Edition }
 export type CategoryPrompt = { word: string }
 
 export const emojiRiddles: Record<Edition, EmojiRiddle[]> = {
@@ -716,6 +717,14 @@ export const categoryPrompts: Record<Edition, CategoryPrompt[]> = {
 
 export const getEmojiRiddles = (editions: Edition[]) =>
   editions.flatMap((edition) => emojiRiddles[edition])
+
+export const getEmojiRiddlesWithEdition = (editions: Edition[]): EmojiRiddleWithEdition[] =>
+  editions.flatMap((edition) =>
+    emojiRiddles[edition].map((riddle) => ({
+      ...riddle,
+      edition
+    }))
+  )
 
 export const getCategoryPrompts = (editions: Edition[]) =>
   editions.flatMap((edition) => categoryPrompts[edition])

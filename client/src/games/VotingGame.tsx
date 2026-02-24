@@ -32,6 +32,7 @@ export default function VotingGame({
 }: Props) {
   const [results, setResults] = useState<Record<string, number> | null>(null)
   const [voted, setVoted] = useState<Record<string, boolean>>({})
+  const [voterChoices, setVoterChoices] = useState<Array<{ voter: string; target: string }>>([])
   const scoredRef = useRef(false)
 
   const list = getVotingQuestions(editions)
@@ -70,13 +71,19 @@ export default function VotingGame({
     players.forEach((p) => {
       tally[p] = 0
     })
-    Object.values(submissions).forEach((targetId) => {
+    const choices: Array<{ voter: string; target: string }> = []
+    Object.entries(submissions).forEach(([voterId, targetId]) => {
       const targetName = playerNameById[targetId]
       if (targetName && tally[targetName] !== undefined) {
         tally[targetName] += 1
       }
+      const voterName = playerNameById[voterId]
+      if (voterName && targetName) {
+        choices.push({ voter: voterName, target: targetName })
+      }
     })
     setResults(tally)
+    setVoterChoices(choices)
   }, [submissions, players, playerNameById])
 
   const allVoted = useMemo(() => {
@@ -107,24 +114,33 @@ export default function VotingGame({
     <div id="voting-game" className="game-stage">
       <div className="voting-question">{question}</div>
       {allVoted && results ? (
-        <div className="vote-result">
-          {Object.entries(results)
-            .sort((a, b) => b[1] - a[1])
-            .map(([player, value]) => {
-              const percent = total ? Math.round((value / total) * 100) : 0
-              return (
-                <div className="result-bar-wrap" key={player}>
-                  <div className="result-label">
-                    <span>{player}</span>
-                    <span>{percent}%</span>
+        <>
+          <div className="vote-result">
+            {Object.entries(results)
+              .sort((a, b) => b[1] - a[1])
+              .map(([player, value]) => {
+                const percent = total ? Math.round((value / total) * 100) : 0
+                return (
+                  <div className="result-bar-wrap" key={player}>
+                    <div className="result-label">
+                      <span>{player}</span>
+                      <span>{percent}%</span>
+                    </div>
+                    <div className="result-bar-bg">
+                      <div className="result-bar-fill" style={{ width: `${percent}%` }} />
+                    </div>
                   </div>
-                  <div className="result-bar-bg">
-                    <div className="result-bar-fill" style={{ width: `${percent}%` }} />
-                  </div>
-                </div>
-              )
-            })}
-        </div>
+                )
+              })}
+          </div>
+          <div className="guesses-log" style={{ width: '100%', maxWidth: 500 }}>
+            {voterChoices.map((choice, index) => (
+              <div className="guess-entry" key={`${choice.voter}-${index}`}>
+                <strong>{choice.voter}</strong> → {choice.target}
+              </div>
+            ))}
+          </div>
+        </>
       ) : (
         <div className="vote-options">
           {players.map((player, index) => (

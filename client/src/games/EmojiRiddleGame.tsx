@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { type Edition, getEmojiRiddles } from './gameContent'
+import { type Edition, getEmojiRiddlesWithEdition } from './gameContent'
 
 type Props = {
   players: string[]
@@ -26,7 +26,11 @@ export default function EmojiRiddleGame({
   playerNameById,
   currentPlayerName
 }: Props) {
-  const riddles = useMemo(() => getEmojiRiddles(editions), [editions])
+  const effectiveEditions = useMemo(() => {
+    const hasFilmOrGaming = editions.includes('film') || editions.includes('gaming')
+    return hasFilmOrGaming ? editions.filter((edition) => edition === 'film' || edition === 'gaming') : editions
+  }, [editions])
+  const riddles = useMemo(() => getEmojiRiddlesWithEdition(effectiveEditions), [effectiveEditions])
   const riddle = riddles[contentSeed % riddles.length]
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const scoredRef = useRef(false)
@@ -73,6 +77,9 @@ export default function EmojiRiddleGame({
 
   return (
     <div className="game-stage">
+      <div className="tagline" style={{ marginBottom: '0.5rem' }}>
+        Hinweis: {riddle.edition === 'film' ? '🎬 Film' : riddle.edition === 'gaming' ? '🎮 Gaming' : '🌍 Allgemein'}
+      </div>
       <div className="emoji-card">{riddle.emoji}</div>
       <div className="emoji-answer">
         <input

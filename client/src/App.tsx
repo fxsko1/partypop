@@ -148,6 +148,14 @@ export default function App() {
       }
     })
   }
+
+  useEffect(() => {
+    if (screen !== 'roundSummary' || !isHost) return
+    const timeout = window.setTimeout(() => {
+      nextRound()
+    }, 12000)
+    return () => window.clearTimeout(timeout)
+  }, [screen, isHost, round, currentGame, roomState])
   const qrRef = useRef<HTMLCanvasElement | null>(null)
   const [roomPlayers, setRoomPlayers] = useState<Player[]>([])
   const [scores, setScores] = useState<Record<string, number>>({})
@@ -876,8 +884,8 @@ export default function App() {
         </>
       ) : screen === 'roundSummary' ? (
         <>
-          <button className="btn btn-back" onClick={() => setScreen('game')}>
-            ← Zurück
+          <button className="btn btn-back" onClick={leaveRoom}>
+            ← Lobby verlassen
           </button>
           <div className="game-shell">
             <div className="game-title">Zwischenstand</div>
