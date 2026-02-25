@@ -760,7 +760,11 @@ export default function App() {
               ? 'Privat: Beitritt nur mit Raum-Code.'
               : 'Öffentlich: Random Lobby Spieler können auch in laufende Räume joinen.'}
           </p>
-          <button className="btn btn-primary" onClick={createRoom}>
+          <button
+            className="btn btn-primary"
+            style={{ width: '100%', maxWidth: 300, fontSize: '1.05rem', padding: '0.85rem 1.2rem' }}
+            onClick={createRoom}
+          >
             Raum erstellen
           </button>
         </>
