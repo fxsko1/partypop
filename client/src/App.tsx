@@ -1239,6 +1239,11 @@ export default function App() {
                 onChange={(event) => updateMaxRounds(Number(event.target.value))}
                 style={{ width: '100%' }}
               />
+              {roomState?.visibility === 'public' ? (
+                <p className="tagline" style={{ textAlign: 'left' }}>
+                  Random Queue ({roomState.publicRegion}/{roomState.publicLanguage}): {roomState.publicQueueWaiting ?? 0} wartend
+                </p>
+              ) : null}
             </div>
           ) : null}
           {leaveNotice ? <p className="tagline" style={{ color: '#ff6b6b' }}>{leaveNotice}</p> : null}

@@ -56,7 +56,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, Record<string,
 const rooms = new Map<RoomCode, RoomState>()
 const awardedTokensByRoom = new Map<RoomCode, Set<string>>()
 const CATEGORY_MAX_BID = 12
-const PUBLIC_ROOM_MAX_PLAYERS = 15
+const PUBLIC_ROOM_MAX_PLAYERS = 10
 const queueByKey = new Map<string, Array<{
   socketId: string
   playerId: string
@@ -84,6 +84,9 @@ const createRoomState = (
   code,
   source,
   visibility,
+  publicRegion: undefined,
+  publicLanguage: undefined,
+  publicQueueWaiting: 0,
   hostId: host.id,
   mode: null,
   phase: 'lobby',
@@ -154,6 +157,13 @@ const emitQueueStatus = (key: string) => {
   const payload: QueueStatusPayload = { waiting, region, language }
   const items = queueByKey.get(key) ?? []
   items.forEach((entry) => io.to(entry.socketId).emit('random-queue-status', payload))
+
+  for (const room of rooms.values()) {
+    if (room.visibility !== 'public') continue
+    if (room.publicRegion !== region || room.publicLanguage !== language) continue
+    room.publicQueueWaiting = waiting
+    emitRoomUpdate(room)
+  }
 }
 
 const resetRoundAwards = (roomCode: RoomCode) => {
@@ -186,8 +196,8 @@ const findJoinablePublicRoom = (region: string, language: string) => {
   const entries = Array.from(rooms.values())
   const candidates = entries.filter((room) => {
     if (room.source !== 'random' || room.visibility !== 'public') return false
-    const roomRegion = (room.roundGuessLog.find((entry) => entry.value.startsWith('region:'))?.value ?? '').replace('region:', '')
-    const roomLanguage = (room.roundGuessLog.find((entry) => entry.value.startsWith('language:'))?.value ?? '').replace('language:', '')
+    const roomRegion = room.publicRegion ?? ''
+    const roomLanguage = room.publicLanguage ?? ''
     if (roomRegion !== region || roomLanguage !== language) return false
     const connectedCount = room.players.filter((player) => player.connected).length
     return connectedCount < PUBLIC_ROOM_MAX_PLAYERS
@@ -241,8 +251,9 @@ const tryMatchmake = (key: string) => {
     connected: true,
     isHost: index === 0
   }))
-  room.roundGuessLog.push({ playerId: host.id, value: `region:${hostEntry.region}` })
-  room.roundGuessLog.push({ playerId: host.id, value: `language:${hostEntry.language}` })
+  room.publicRegion = hostEntry.region
+  room.publicLanguage = hostEntry.language
+  room.publicQueueWaiting = queueByKey.get(randomQueueKey(hostEntry.region, hostEntry.language))?.length ?? 0
   rooms.set(code, room)
   resetRoundAwards(code)
 
@@ -328,8 +339,9 @@ io.on('connection', (socket) => {
       }
       const room = createRoomState(newCode, host, source, visibility)
       if (visibility === 'public') {
-        room.roundGuessLog.push({ playerId: host.id, value: 'region:DE' })
-        room.roundGuessLog.push({ playerId: host.id, value: 'language:de' })
+        room.publicRegion = 'DE'
+        room.publicLanguage = 'de'
+        room.publicQueueWaiting = queueByKey.get(randomQueueKey('DE', 'de'))?.length ?? 0
       }
       rooms.set(newCode, room)
       resetRoundAwards(newCode)

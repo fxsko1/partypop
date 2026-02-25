@@ -60,6 +60,9 @@ export interface RoomState {
   code: RoomCode
   source: RoomSource
   visibility: RoomVisibility
+  publicRegion?: string
+  publicLanguage?: string
+  publicQueueWaiting?: number
   hostId: PlayerId
   mode: GameMode | null
   phase: GamePhase
