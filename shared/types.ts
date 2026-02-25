@@ -106,6 +106,10 @@ export type PlayerAction =
       roundSeconds: number
     }
   | {
+      type: 'host_set_max_rounds'
+      maxRounds: number
+    }
+  | {
       type: 'host_set_editions'
       editions: EditionKey[]
     }

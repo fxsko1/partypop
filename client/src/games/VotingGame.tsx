@@ -97,7 +97,7 @@ export default function VotingGame({
 
   useEffect(() => {
     if (allVoted) {
-      const timeout = window.setTimeout(() => onRoundComplete(), 4000)
+      const timeout = window.setTimeout(() => onRoundComplete(), 8000)
       return () => window.clearTimeout(timeout)
     }
   }, [allVoted, onRoundComplete])
@@ -138,6 +138,7 @@ export default function VotingGame({
               })}
           </div>
           <div className="guesses-log" style={{ width: '100%', maxWidth: 500 }}>
+            <div className="tagline" style={{ marginBottom: 6 }}>Wer hat wen gewählt:</div>
             {voterChoices.map((choice, index) => (
               <div className="guess-entry" key={`${choice.voter}-${index}`}>
                 <strong>{choice.voter}</strong> → {choice.target}

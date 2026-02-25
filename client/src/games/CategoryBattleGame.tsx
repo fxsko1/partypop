@@ -74,6 +74,12 @@ export default function CategoryBattleGame({
     () => guessLog.find((entry) => entry.value === 'category_winner')?.playerId ?? null,
     [guessLog]
   )
+  const validatorId = useMemo(() => {
+    const marker = guessLog.find((entry) => entry.value.startsWith('category_validator:'))?.value
+    if (!marker) return null
+    return marker.replace('category_validator:', '')
+  }, [guessLog])
+  const iAmValidator = Boolean(validatorId && validatorId === currentPlayerId)
   const winnerBid = useMemo(() => {
     if (!winnerId) return 0
     const raw = submissions[winnerId] ?? ''
@@ -243,9 +249,22 @@ export default function CategoryBattleGame({
         <div className="tagline">{playerNameById[winnerId] ?? 'Spieler'} gibt Begriffe ein.</div>
       ) : null}
 
-      {isHost && winnerWords.length > 0 && !result ? (
+      {winnerWords.length > 0 ? (
+        <div className="guesses-log">
+          <div className="tagline" style={{ marginBottom: 6 }}>
+            Begriffe von {playerNameById[winnerId ?? ''] ?? 'Spieler'}:
+          </div>
+          {winnerWords.map((word, index) => (
+            <div key={`${word}-${index}`} className="guess-entry">
+              {index + 1}. {word}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {iAmValidator && winnerWords.length > 0 && !result ? (
         <div className="category-validation">
-          <div className="tagline">Host Validierung</div>
+          <div className="tagline">Validierung</div>
           {winnerWords.map((word, index) => (
             <div key={`${word}-${index}`} className="category-validate-row">
               <span className="category-word-index">{index + 1}.</span>
@@ -271,8 +290,10 @@ export default function CategoryBattleGame({
         </div>
       ) : null}
 
-      {winnerWords.length > 0 && !isHost && !result ? (
-        <div className="tagline">Host validiert die Begriffe...</div>
+      {winnerWords.length > 0 && !iAmValidator && !result ? (
+        <div className="tagline">
+          {playerNameById[validatorId ?? ''] ?? 'Spieler'} validiert die Begriffe...
+        </div>
       ) : null}
 
       {result ? (

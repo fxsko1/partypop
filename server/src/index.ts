@@ -74,6 +74,14 @@ const createRoomState = (code: RoomCode, host: Player): RoomState => ({
   createdAt: Date.now()
 })
 
+const pickCategoryValidator = (room: RoomState, winnerId: string) => {
+  if (room.hostId !== winnerId) return room.hostId
+  const candidates = room.players.filter((player) => player.connected && player.id !== winnerId)
+  if (!candidates.length) return room.hostId
+  const index = Math.floor(Math.random() * candidates.length)
+  return candidates[index].id
+}
+
 const emitRoomUpdate = (room: RoomState) => {
   const payload: GameStateUpdate = { room }
   io.to(room.code).emit('game-state-update', payload)
@@ -273,6 +281,17 @@ io.on('connection', (socket) => {
       return
     }
 
+    if (payload.action.type === 'host_set_max_rounds') {
+      if (socket.data.playerId !== room.hostId) {
+        emitError(socket.id, { code: 'INVALID_PAYLOAD', message: 'Nur der Host kann Rundenzahl ändern.' })
+        return
+      }
+      const rounds = Math.max(1, Math.min(20, Math.floor(payload.action.maxRounds)))
+      room.maxRounds = rounds
+      emitRoomUpdate(room)
+      return
+    }
+
     if (payload.action.type === 'host_set_editions') {
       if (socket.data.playerId !== room.hostId) {
         emitError(socket.id, { code: 'INVALID_PAYLOAD', message: 'Nur der Host kann Editionen ändern.' })
@@ -430,10 +449,16 @@ io.on('connection', (socket) => {
         const tied = bids.filter((b) => b.bid === top)
         room.roundGuessLog = room.roundGuessLog.filter((entry) => !entry.value.startsWith('category_tiebreak:'))
         if (tied.length === 1) {
+          const winner = tied[0].playerId
+          const validatorId = pickCategoryValidator(room, winner)
           room.roundGuessLog.push({
-            playerId: tied[0].playerId,
+            playerId: winner,
             value: 'category_winner',
             correct: true
+          })
+          room.roundGuessLog.push({
+            playerId: validatorId,
+            value: `category_validator:${validatorId}`
           })
         } else {
           tied.forEach(({ playerId }) => {

@@ -7,6 +7,7 @@ import QuizGame from './games/QuizGame'
 import VotingGame from './games/VotingGame'
 import type {
   ClientToServerEvents,
+  GameMode,
   EditionKey,
   GameStateUpdate,
   JoinRoomPayload,
@@ -97,6 +98,8 @@ export default function App() {
   const [leaveNotice, setLeaveNotice] = useState('')
   const [timeLeft, setTimeLeft] = useState(60)
   const [roundSeconds, setRoundSeconds] = useState(60)
+  const [maxRounds, setMaxRounds] = useState(10)
+  const [roundPlan, setRoundPlan] = useState<GameMode[]>([])
   const roundCompleteRef = useRef(false)
   const autoAdvancedKeyRef = useRef('')
   const lastConnectedIdsRef = useRef<string[]>([])
@@ -104,16 +107,39 @@ export default function App() {
   const games = useMemo(
     () =>
       (isPremium
-        ? (['quiz', 'drawing', 'voting', 'emoji', 'category'] as const)
-        : (['quiz', 'drawing', 'voting'] as const)),
+        ? (['quiz', 'drawing', 'voting', 'emoji', 'category'] as GameMode[])
+        : (['quiz', 'drawing', 'voting'] as GameMode[])),
     [isPremium]
   )
 
   const pickRandomGame = () => games[Math.floor(Math.random() * games.length)]
 
+  const buildRoundPlan = (totalRounds: number, pool: GameMode[]) => {
+    const counts = Object.fromEntries(pool.map((mode) => [mode, 0])) as Record<GameMode, number>
+    const shuffledBase = [...pool].sort(() => Math.random() - 0.5)
+    const plan: GameMode[] = []
+
+    for (const mode of shuffledBase) {
+      if (plan.length >= totalRounds) break
+      plan.push(mode)
+      counts[mode] += 1
+    }
+
+    while (plan.length < totalRounds) {
+      const min = Math.min(...pool.map((mode) => counts[mode]))
+      const candidates = pool.filter((mode) => counts[mode] === min)
+      const next = candidates[Math.floor(Math.random() * candidates.length)]
+      plan.push(next)
+      counts[next] += 1
+    }
+    return plan
+  }
+
   const startSession = () => {
     if (!isHost || !roomState || !socketRef.current) return
-    const mode = pickRandomGame()
+    const plan = buildRoundPlan(maxRounds, games)
+    setRoundPlan(plan)
+    const mode = plan[0] ?? pickRandomGame()
     socketRef.current.emit('start-game', { code: roomState.code, mode })
   }
 
@@ -125,7 +151,7 @@ export default function App() {
 
   const nextRound = () => {
     if (!isHost || !roomState || !socketRef.current) return
-    if (round >= 10) {
+    if (round >= maxRounds) {
       socketRef.current.emit('player-action', {
         code: roomState.code,
         action: {
@@ -138,7 +164,7 @@ export default function App() {
       return
     }
     const next = round + 1
-    const mode = pickRandomGame()
+    const mode = roundPlan[next - 1] ?? pickRandomGame()
     socketRef.current.emit('player-action', {
       code: roomState.code,
       action: {
@@ -270,7 +296,8 @@ export default function App() {
       setRoomCode(room.code)
       setIsHost(room.hostId === playerIdRef.current)
       setRound(room.round)
-      setRoundSeconds(room.roundSeconds ?? 60)
+    setRoundSeconds(room.roundSeconds ?? 60)
+      setMaxRounds(room.maxRounds ?? 10)
       setEditions(room.selectedEditions ?? ['wissen'])
       if (room.mode) setCurrentGame(room.mode)
       setRoomPlayers(room.players)
@@ -412,6 +439,18 @@ export default function App() {
     })
   }
 
+  const updateMaxRounds = (value: number) => {
+    if (!socketRef.current || !roomState || !isHost) return
+    setMaxRounds(value)
+    socketRef.current.emit('player-action', {
+      code: roomState.code,
+      action: {
+        type: 'host_set_max_rounds',
+        maxRounds: value
+      }
+    })
+  }
+
   const submitQuiz = (answerIndex: number, isCorrect: boolean) => {
     if (!roomState || !socketRef.current) return
     socketRef.current.emit('player-action', {
@@ -512,6 +551,17 @@ export default function App() {
       endRound()
     }
   }, [roomState, roomPlayers, screen])
+
+  useEffect(() => {
+    if (!roomState || roomState.mode !== 'category' || screen !== 'game') return
+    const hasResult = (roomState.roundGuessLog ?? []).some((entry) =>
+      entry.value.startsWith('category_result:')
+    )
+    if (hasResult) {
+      const timeout = window.setTimeout(() => endRound(), 1200)
+      return () => window.clearTimeout(timeout)
+    }
+  }, [roomState, screen])
 
   return (
     <div className="screen active" id={screen}>
@@ -773,7 +823,7 @@ export default function App() {
           </div>
           <div className="game-shell">
             <div className="game-round" style={{ fontSize: '1.4rem', fontWeight: 800 }}>
-              Runde {round} / 10 · ⏱ {timeLeft}s
+              Runde {round} / {maxRounds} · ⏱ {timeLeft}s
             </div>
             <div className="game-title">
               {currentGame === 'quiz' && '🧠 Quiz'}
@@ -912,7 +962,7 @@ export default function App() {
             </div>
             {isHost ? (
               <button className="btn btn-yellow" onClick={nextRound}>
-                {round >= 10 ? 'Beenden' : 'Nächste Runde'}
+                {round >= maxRounds ? 'Beenden' : 'Nächste Runde'}
               </button>
             ) : (
               <div className="tagline">Host startet die nächste Runde...</div>
@@ -964,7 +1014,7 @@ export default function App() {
             </div>
           </div>
           {isHost ? (
-            <div style={{ width: '100%', maxWidth: 360 }}>
+            <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <label htmlFor="round-seconds" className="tagline">
                 Rundenzeit: {roundSeconds}s
               </label>
@@ -976,6 +1026,19 @@ export default function App() {
                 step={10}
                 value={roundSeconds}
                 onChange={(event) => updateRoundSeconds(Number(event.target.value))}
+                style={{ width: '100%' }}
+              />
+              <label htmlFor="max-rounds" className="tagline">
+                Runden: {maxRounds}
+              </label>
+              <input
+                id="max-rounds"
+                type="range"
+                min={1}
+                max={20}
+                step={1}
+                value={maxRounds}
+                onChange={(event) => updateMaxRounds(Number(event.target.value))}
                 style={{ width: '100%' }}
               />
             </div>
