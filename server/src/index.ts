@@ -3,6 +3,7 @@ import dotenv from 'dotenv'
 import express from 'express'
 import http from 'http'
 import { Server } from 'socket.io'
+import { checkDatabaseConnection, hasDatabaseConfig } from './db'
 import {
   ClientToServerEvents,
   GameMode,
@@ -22,7 +23,17 @@ dotenv.config()
 
 const app = express()
 app.use(cors())
-app.get('/health', (_req, res) => res.json({ ok: true }))
+app.get('/health', async (_req, res) => {
+  const db = await checkDatabaseConnection()
+  res.json({
+    ok: true,
+    db
+  })
+})
+app.get('/health/db', async (_req, res) => {
+  const db = await checkDatabaseConnection()
+  res.status(db.connected ? 200 : hasDatabaseConfig() ? 503 : 400).json(db)
+})
 
 const httpServer = http.createServer(app)
 
