@@ -6,13 +6,17 @@ import { Server } from 'socket.io'
 import { checkDatabaseConnection, hasDatabaseConfig } from './db'
 import { getRoundContentFromDb } from './contentRepo'
 import {
+  BlockPlayerPayload,
   ClientToServerEvents,
   GameMode,
   GamePhase,
   GameStateUpdate,
   JoinRoomPayload,
+  JoinRandomLobbyPayload,
   Player,
   PlayerActionPayload,
+  QueueStatusPayload,
+  ReportPlayerPayload,
   RoomCode,
   RoomState,
   ServerError,
@@ -51,14 +55,27 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, Record<string,
 const rooms = new Map<RoomCode, RoomState>()
 const awardedTokensByRoom = new Map<RoomCode, Set<string>>()
 const CATEGORY_MAX_BID = 12
+const queueByKey = new Map<string, Array<{
+  socketId: string
+  playerId: string
+  name: string
+  region: string
+  language: string
+}>>()
+const reports: Array<{ roomCode: string; reporterId: string; targetId: string; reason: string; at: number }> = []
+const blockedByPlayer = new Map<string, Set<string>>()
+const socketEventHits = new Map<string, Array<number>>()
+const NAME_BLOCKLIST = ['nazi', 'hitler', 'terror', 'admin', 'mod', 'support', 'idiot', 'arschloch']
+const RANDOM_MATCH_SIZE = 4
 
 const generateCode = (): RoomCode => {
   const code = Math.floor(1000 + Math.random() * 9000).toString()
   return code
 }
 
-const createRoomState = (code: RoomCode, host: Player): RoomState => ({
+const createRoomState = (code: RoomCode, host: Player, source: RoomState['source'] = 'private'): RoomState => ({
   code,
+  source,
   hostId: host.id,
   mode: null,
   phase: 'lobby',
@@ -91,6 +108,46 @@ const emitError = (socketId: string, error: ServerError) => {
   io.to(socketId).emit('error', error)
 }
 
+const allowEvent = (socketId: string, eventKey: string, limit: number, windowMs: number) => {
+  const now = Date.now()
+  const key = `${socketId}:${eventKey}`
+  const prev = socketEventHits.get(key) ?? []
+  const recent = prev.filter((ts) => now - ts <= windowMs)
+  if (recent.length >= limit) {
+    socketEventHits.set(key, recent)
+    return false
+  }
+  recent.push(now)
+  socketEventHits.set(key, recent)
+  return true
+}
+
+const cleanName = (value: string) => value.trim().slice(0, 24)
+const isNameAllowed = (value: string) => {
+  const low = value.toLowerCase()
+  return !NAME_BLOCKLIST.some((bad) => low.includes(bad))
+}
+
+const randomQueueKey = (region: string, language: string) => `${region.toUpperCase()}:${language.toLowerCase()}`
+const normalizeRegion = (region: string) => region.trim().toUpperCase() || 'DE'
+const normalizeLanguage = (language: string) => language.trim().toLowerCase() || 'de'
+
+const dequeueSocketEverywhere = (socketId: string) => {
+  for (const [key, items] of queueByKey.entries()) {
+    const next = items.filter((item) => item.socketId !== socketId)
+    if (!next.length) queueByKey.delete(key)
+    else queueByKey.set(key, next)
+  }
+}
+
+const emitQueueStatus = (key: string) => {
+  const [region, language] = key.split(':')
+  const waiting = queueByKey.get(key)?.length ?? 0
+  const payload: QueueStatusPayload = { waiting, region, language }
+  const items = queueByKey.get(key) ?? []
+  items.forEach((entry) => io.to(entry.socketId).emit('random-queue-status', payload))
+}
+
 const resetRoundAwards = (roomCode: RoomCode) => {
   awardedTokensByRoom.set(roomCode, new Set<string>())
 }
@@ -107,6 +164,74 @@ const addScore = (room: RoomState, playerId: string, delta: number) => {
   const player = room.players.find((p) => p.id === playerId)
   if (!player) return
   player.score += delta
+}
+
+const canMatchPair = (aId: string, bId: string) => {
+  const aBlocked = blockedByPlayer.get(aId)
+  const bBlocked = blockedByPlayer.get(bId)
+  if (aBlocked?.has(bId)) return false
+  if (bBlocked?.has(aId)) return false
+  return true
+}
+
+const tryMatchmake = (key: string) => {
+  const entries = queueByKey.get(key) ?? []
+  if (entries.length < RANDOM_MATCH_SIZE) return
+
+  const candidates = entries.slice(0, 12)
+  let selected: typeof candidates = []
+  for (let i = 0; i < candidates.length; i += 1) {
+    const seed = candidates[i]
+    const group: typeof candidates = [seed]
+    for (let j = 0; j < candidates.length; j += 1) {
+      if (i === j) continue
+      const current = candidates[j]
+      const fits = group.every((picked) => canMatchPair(picked.playerId, current.playerId))
+      if (fits) group.push(current)
+      if (group.length >= RANDOM_MATCH_SIZE) break
+    }
+    if (group.length >= RANDOM_MATCH_SIZE) {
+      selected = group.slice(0, RANDOM_MATCH_SIZE)
+      break
+    }
+  }
+  if (selected.length < RANDOM_MATCH_SIZE) return
+
+  const remaining = entries.filter((item) => !selected.some((pick) => pick.socketId === item.socketId))
+  if (!remaining.length) queueByKey.delete(key)
+  else queueByKey.set(key, remaining)
+
+  const code = generateCode()
+  const hostEntry = selected[0]
+  const host: Player = {
+    id: hostEntry.playerId,
+    name: hostEntry.name,
+    score: 0,
+    connected: true,
+    isHost: true
+  }
+  const room = createRoomState(code, host, 'random')
+  room.players = selected.map((entry, index) => ({
+    id: entry.playerId,
+    name: entry.name,
+    score: 0,
+    connected: true,
+    isHost: index === 0
+  }))
+  rooms.set(code, room)
+  resetRoundAwards(code)
+
+  selected.forEach((entry) => {
+    const s = io.sockets.sockets.get(entry.socketId)
+    if (!s) return
+    s.join(code)
+    s.data.playerId = entry.playerId
+    s.data.roomCode = code
+    s.data.randomQueueKey = undefined
+    s.emit('room-joined', room)
+  })
+  emitRoomUpdate(room)
+  emitQueueStatus(key)
 }
 
 const prepareRoundContent = async (room: RoomState, mode: GameMode) => {
@@ -148,13 +273,28 @@ io.on('connection', (socket) => {
   }
 
   socket.on('join-room', (payload: JoinRoomPayload) => {
+    if (!allowEvent(socket.id, 'join-room', 8, 10_000)) {
+      emitError(socket.id, { code: 'SERVER_ERROR', message: 'Zu viele Join-Versuche. Bitte kurz warten.' })
+      return
+    }
     const { code, name, isHost, playerId } = payload
+    if (socket.data.randomQueueKey) {
+      const key = socket.data.randomQueueKey
+      dequeueSocketEverywhere(socket.id)
+      socket.data.randomQueueKey = undefined
+      emitQueueStatus(key)
+    }
+    const clean = cleanName(name)
+    if (!clean || !isNameAllowed(clean)) {
+      emitError(socket.id, { code: 'INVALID_PAYLOAD', message: 'Ungültiger Name.' })
+      return
+    }
 
     if (isHost) {
       const newCode = generateCode()
       const host: Player = {
         id: playerId ?? socket.id,
-        name,
+        name: clean,
         score: 0,
         connected: true,
         isHost: true
@@ -194,7 +334,7 @@ io.on('connection', (socket) => {
     } else {
       player = {
         id: wantedId,
-        name,
+        name: clean,
         score: 0,
         connected: true,
         isHost: false
@@ -207,6 +347,80 @@ io.on('connection', (socket) => {
     socket.data.roomCode = code
     socket.emit('room-joined', room)
     emitRoomUpdate(room)
+  })
+
+  socket.on('join-random-lobby', (payload: JoinRandomLobbyPayload) => {
+    if (!allowEvent(socket.id, 'join-random-lobby', 6, 10_000)) {
+      emitError(socket.id, { code: 'SERVER_ERROR', message: 'Zu viele Queue-Versuche. Bitte kurz warten.' })
+      return
+    }
+    const name = cleanName(payload.name)
+    if (!name || !isNameAllowed(name)) {
+      emitError(socket.id, { code: 'INVALID_PAYLOAD', message: 'Ungültiger Name für Random Lobby.' })
+      return
+    }
+    if (!payload.ageConfirmed || !payload.acceptedTerms || !payload.acceptedPrivacy) {
+      emitError(socket.id, {
+        code: 'INVALID_PAYLOAD',
+        message: 'Bitte Alters-/Content-Regeln und DSGVO-Hinweise bestätigen.'
+      })
+      return
+    }
+
+    const region = normalizeRegion(payload.region)
+    const language = normalizeLanguage(payload.language)
+    const key = randomQueueKey(region, language)
+    const entry = {
+      socketId: socket.id,
+      playerId: payload.playerId ?? socket.id,
+      name,
+      region,
+      language
+    }
+
+    dequeueSocketEverywhere(socket.id)
+    const next = queueByKey.get(key) ?? []
+    next.push(entry)
+    queueByKey.set(key, next)
+    socket.data.randomQueueKey = key
+    socket.data.playerId = entry.playerId
+    emitQueueStatus(key)
+    tryMatchmake(key)
+  })
+
+  socket.on('leave-random-lobby', () => {
+    const key = socket.data.randomQueueKey
+    dequeueSocketEverywhere(socket.id)
+    socket.data.randomQueueKey = undefined
+    if (key) emitQueueStatus(key)
+  })
+
+  socket.on('report-player', (payload: ReportPlayerPayload) => {
+    if (!allowEvent(socket.id, 'report-player', 15, 60_000)) {
+      emitError(socket.id, { code: 'SERVER_ERROR', message: 'Zu viele Reports in kurzer Zeit.' })
+      return
+    }
+    if (!payload.reason || payload.reason.trim().length < 3) {
+      emitError(socket.id, { code: 'INVALID_PAYLOAD', message: 'Bitte Report-Grund angeben.' })
+      return
+    }
+    const reporterId = socket.data.playerId
+    if (!reporterId) return
+    reports.push({
+      roomCode: payload.code,
+      reporterId,
+      targetId: payload.targetPlayerId,
+      reason: payload.reason.slice(0, 200),
+      at: Date.now()
+    })
+  })
+
+  socket.on('block-player', (payload: BlockPlayerPayload) => {
+    const actorId = socket.data.playerId
+    if (!actorId) return
+    const set = blockedByPlayer.get(actorId) ?? new Set<string>()
+    set.add(payload.targetPlayerId)
+    blockedByPlayer.set(actorId, set)
   })
 
   socket.on('start-game', async (payload) => {
@@ -521,6 +735,9 @@ io.on('connection', (socket) => {
   })
 
   socket.on('disconnect', () => {
+    const key = socket.data.randomQueueKey
+    dequeueSocketEverywhere(socket.id)
+    if (key) emitQueueStatus(key)
     handleLeave()
   })
 })

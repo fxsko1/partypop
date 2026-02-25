@@ -2,6 +2,7 @@ export type RoomCode = string
 export type PlayerId = string
 export type GameId = string
 export type EditionKey = 'fussball' | 'wissen' | 'romantisch' | 'gaming' | 'film'
+export type RoomSource = 'private' | 'random'
 
 export type GameMode = 'quiz' | 'drawing' | 'voting' | 'emoji' | 'category'
 export type GamePhase = 'lobby' | 'countdown' | 'in_game' | 'results' | 'session_end'
@@ -56,6 +57,7 @@ export interface Player {
 
 export interface RoomState {
   code: RoomCode
+  source: RoomSource
   hostId: PlayerId
   mode: GameMode | null
   phase: GamePhase
@@ -80,6 +82,37 @@ export interface JoinRoomPayload {
   name: string
   isHost: boolean
   playerId?: PlayerId
+}
+
+export interface JoinRandomLobbyPayload {
+  name: string
+  playerId?: PlayerId
+  region: string
+  language: string
+  ageConfirmed: boolean
+  acceptedTerms: boolean
+  acceptedPrivacy: boolean
+}
+
+export interface LeaveRandomLobbyPayload {
+  region?: string
+  language?: string
+}
+
+export interface QueueStatusPayload {
+  waiting: number
+  region: string
+  language: string
+}
+
+export interface ReportPlayerPayload {
+  code: RoomCode
+  targetPlayerId: PlayerId
+  reason: string
+}
+
+export interface BlockPlayerPayload {
+  targetPlayerId: PlayerId
 }
 
 export interface StartGamePayload {
@@ -186,6 +219,10 @@ export interface ServerError {
 export interface ClientToServerEvents {
   'join-room': (payload: JoinRoomPayload) => void
   'leave-room': () => void
+  'join-random-lobby': (payload: JoinRandomLobbyPayload) => void
+  'leave-random-lobby': (payload?: LeaveRandomLobbyPayload) => void
+  'report-player': (payload: ReportPlayerPayload) => void
+  'block-player': (payload: BlockPlayerPayload) => void
   'start-game': (payload: StartGamePayload) => void
   'player-action': (payload: PlayerActionPayload) => void
 }
@@ -193,12 +230,14 @@ export interface ClientToServerEvents {
 export interface ServerToClientEvents {
   'room-joined': (room: RoomState) => void
   'game-state-update': (payload: GameStateUpdate) => void
+  'random-queue-status': (payload: QueueStatusPayload) => void
   error: (payload: ServerError) => void
 }
 
 export interface SocketData {
   playerId?: PlayerId
   roomCode?: RoomCode
+  randomQueueKey?: string
 }
 
 export const RedisKeys = {

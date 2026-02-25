@@ -6,18 +6,22 @@ import EmojiRiddleGame from './games/EmojiRiddleGame'
 import QuizGame from './games/QuizGame'
 import VotingGame from './games/VotingGame'
 import type {
+  BlockPlayerPayload,
   ClientToServerEvents,
   GameMode,
   EditionKey,
   GameStateUpdate,
+  JoinRandomLobbyPayload,
   JoinRoomPayload,
   Player,
+  QueueStatusPayload,
+  ReportPlayerPayload,
   RoomState,
   ServerError,
   ServerToClientEvents
 } from '@shared/types'
 
-type Screen = 'home' | 'lobby' | 'join' | 'gameselect' | 'game' | 'roundSummary' | 'sessionEnd'
+type Screen = 'home' | 'create' | 'lobby' | 'join' | 'gameselect' | 'game' | 'roundSummary' | 'sessionEnd' | 'randomQueue'
 
 const defaultEmojis = ['🎉', '🎊', '🎈', '✨', '🌟', '🎮', '🕹️', '🃏', '🎲', '🎯', '🏆', '💥']
 const hashString = (value: string) => {
@@ -80,6 +84,13 @@ export default function App() {
   const [roomState, setRoomState] = useState<RoomState | null>(null)
   const [joinName, setJoinName] = useState('')
   const [hostName, setHostName] = useState('Host')
+  const [randomName, setRandomName] = useState('')
+  const [queueRegion, setQueueRegion] = useState('DE')
+  const [queueLanguage, setQueueLanguage] = useState('de')
+  const [queueWaiting, setQueueWaiting] = useState(0)
+  const [queueAgeConfirmed, setQueueAgeConfirmed] = useState(false)
+  const [queueTermsConfirmed, setQueueTermsConfirmed] = useState(false)
+  const [queuePrivacyConfirmed, setQueuePrivacyConfirmed] = useState(false)
   const [joinCode, setJoinCode] = useState('')
   const [showProfile, setShowProfile] = useState(false)
   const [showPremiumNudge, setShowPremiumNudge] = useState(false)
@@ -335,6 +346,12 @@ export default function App() {
       }
     })
 
+    socket.on('random-queue-status', (payload: QueueStatusPayload) => {
+      setQueueWaiting(payload.waiting)
+      setQueueRegion(payload.region)
+      setQueueLanguage(payload.language)
+    })
+
     socket.on('disconnect', () => {
       setConnectionError('Verbindung verloren. Bitte neu laden.')
     })
@@ -427,6 +444,50 @@ export default function App() {
     setTimeLeft(60)
     setLeaveNotice('')
     setScreen('home')
+  }
+
+  const joinRandomLobby = () => {
+    const socket = socketRef.current
+    if (!socket) return
+    if (!queueAgeConfirmed || !queueTermsConfirmed || !queuePrivacyConfirmed) {
+      setConnectionError('Bitte Alters-/Content-Regeln und DSGVO-Hinweise bestätigen.')
+      return
+    }
+    const payload: JoinRandomLobbyPayload = {
+      name: randomName.trim() || 'Gast',
+      playerId: playerIdRef.current,
+      region: queueRegion,
+      language: queueLanguage,
+      ageConfirmed: queueAgeConfirmed,
+      acceptedTerms: queueTermsConfirmed,
+      acceptedPrivacy: queuePrivacyConfirmed
+    }
+    socket.emit('join-random-lobby', payload)
+    setConnectionError('')
+    setScreen('randomQueue')
+  }
+
+  const leaveRandomLobby = () => {
+    socketRef.current?.emit('leave-random-lobby')
+    setScreen('home')
+  }
+
+  const reportPlayer = (targetPlayerId: string) => {
+    if (!roomState || !socketRef.current) return
+    const reason = window.prompt('Grund für Report (z.B. Beleidigung, Spam):', 'Unangemessenes Verhalten')
+    if (!reason) return
+    const payload: ReportPlayerPayload = {
+      code: roomState.code,
+      targetPlayerId,
+      reason
+    }
+    socketRef.current.emit('report-player', payload)
+  }
+
+  const blockPlayer = (targetPlayerId: string) => {
+    if (!socketRef.current) return
+    const payload: BlockPlayerPayload = { targetPlayerId }
+    socketRef.current.emit('block-player', payload)
   }
 
   const updateRoundSeconds = (value: number) => {
@@ -649,21 +710,83 @@ export default function App() {
           <div className="logo">PartyPop 🎊</div>
           <p className="tagline">Das Party-Game für alle! Kein Download nötig.</p>
           <div className="home-buttons">
-            <input
-              className="name-input"
-              placeholder="Host-Name"
-              maxLength={20}
-              value={hostName}
-              onChange={(event) => setHostName(event.target.value)}
-            />
-            <button className="btn btn-primary" onClick={createRoom}>
+            <button className="btn btn-primary" onClick={() => setScreen('create')}>
               🎮 Raum erstellen
             </button>
             <button className="btn btn-secondary" onClick={() => setScreen('join')}>
               📱 Beitreten
             </button>
+            <input
+              className="name-input"
+              placeholder="Name für Random Lobby"
+              maxLength={20}
+              value={randomName}
+              onChange={(event) => setRandomName(event.target.value)}
+            />
+            <button className="btn btn-secondary" onClick={joinRandomLobby}>
+              🌍 Random Lobby (DE)
+            </button>
             <button className="btn btn-yellow">✨ Demo starten</button>
           </div>
+          <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label className="tagline" style={{ textAlign: 'left' }}>
+              <input
+                type="checkbox"
+                checked={queueAgeConfirmed}
+                onChange={(event) => setQueueAgeConfirmed(event.target.checked)}
+              />{' '}
+              Ich bin mindestens 16 Jahre alt.
+            </label>
+            <label className="tagline" style={{ textAlign: 'left' }}>
+              <input
+                type="checkbox"
+                checked={queueTermsConfirmed}
+                onChange={(event) => setQueueTermsConfirmed(event.target.checked)}
+              />{' '}
+              Ich akzeptiere Content-Regeln (kein Hate/Spam/Belästigung).
+            </label>
+            <label className="tagline" style={{ textAlign: 'left' }}>
+              <input
+                type="checkbox"
+                checked={queuePrivacyConfirmed}
+                onChange={(event) => setQueuePrivacyConfirmed(event.target.checked)}
+              />{' '}
+              Ich akzeptiere DSGVO-Hinweise zur Datenverarbeitung.
+            </label>
+          </div>
+        </>
+      ) : screen === 'create' ? (
+        <>
+          <button className="btn btn-back" onClick={() => setScreen('home')}>
+            ← Zurück
+          </button>
+          <div className="logo">PartyPop 🎊</div>
+          <h2 className="heading">Raum erstellen</h2>
+          <input
+            className="name-input"
+            placeholder="Host-Name"
+            maxLength={20}
+            value={hostName}
+            onChange={(event) => setHostName(event.target.value)}
+          />
+          <button className="btn btn-primary" onClick={createRoom}>
+            Raum erstellen
+          </button>
+        </>
+      ) : screen === 'randomQueue' ? (
+        <>
+          <button className="btn btn-back" onClick={leaveRandomLobby}>
+            ← Warteschlange verlassen
+          </button>
+          <div className="logo">Random Lobby</div>
+          <p className="tagline">
+            Suche Spieler in Region {queueRegion} / Sprache {queueLanguage}
+          </p>
+          <div className="room-code-display">
+            <div className="label">Wartende Spieler</div>
+            <div className="code">{queueWaiting}</div>
+          </div>
+          <p className="tagline">Sobald genug Spieler da sind, erstellt der Server automatisch einen Raum.</p>
         </>
       ) : screen === 'join' ? (
         <>
@@ -827,6 +950,24 @@ export default function App() {
             {roomPlayers.filter((player) => player.connected).map((player) => (
               <div key={player.id} className="score-chip">
                 👤 {player.name.split(' ')[0]}: <strong>{scores[player.name] ?? 0}</strong>
+                {player.id !== currentPlayerId ? (
+                  <>
+                    <button
+                      className="tool-btn"
+                      style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem' }}
+                      onClick={() => reportPlayer(player.id)}
+                    >
+                      Report
+                    </button>
+                    <button
+                      className="tool-btn"
+                      style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem' }}
+                      onClick={() => blockPlayer(player.id)}
+                    >
+                      Block
+                    </button>
+                  </>
+                ) : null}
               </div>
             ))}
           </div>
