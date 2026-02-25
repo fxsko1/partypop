@@ -16,6 +16,7 @@ type Props = {
   currentPlayerId: string
   activePlayerIds: string[]
   roundContent: RoundContent | null
+  isHost: boolean
 }
 
 export default function VotingGame({
@@ -31,7 +32,8 @@ export default function VotingGame({
   currentPlayerName,
   currentPlayerId,
   activePlayerIds,
-  roundContent
+  roundContent,
+  isHost
 }: Props) {
   const [results, setResults] = useState<Record<string, number> | null>(null)
   const [voted, setVoted] = useState<Record<string, boolean>>({})
@@ -96,13 +98,6 @@ export default function VotingGame({
   }, [activePlayerIds, submissions])
 
   useEffect(() => {
-    if (allVoted) {
-      const timeout = window.setTimeout(() => onRoundComplete(), 8000)
-      return () => window.clearTimeout(timeout)
-    }
-  }, [allVoted, onRoundComplete])
-
-  useEffect(() => {
     if (!results || scoredRef.current || !allVoted) return
     const sorted = Object.entries(results).sort((a, b) => b[1] - a[1])
     const chosen = sorted[0]?.[0]
@@ -145,6 +140,13 @@ export default function VotingGame({
               </div>
             ))}
           </div>
+          {isHost ? (
+            <button className="btn btn-yellow btn-sm voting-next-btn" onClick={onRoundComplete}>
+              Nächste Runde
+            </button>
+          ) : (
+            <div className="tagline">Warte auf den Host für die nächste Runde...</div>
+          )}
         </>
       ) : (
         <div className="vote-options">

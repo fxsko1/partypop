@@ -684,12 +684,8 @@ export default function App() {
                 ✕
               </button>
             </div>
-            <h2 className="heading">Dein Profil</h2>
-            <p className="tagline">Erstelle dein Profil oder schalte Premium frei.</p>
-            <div className="profile-actions">
-              <button className="btn btn-primary">Profil erstellen</button>
-              <button className="btn btn-yellow">Premium kaufen</button>
-            </div>
+            <h2 className="heading">Coming Soon</h2>
+            <p className="tagline">Profil-Features sind bald verfügbar.</p>
           </div>
         </div>
       ) : null}
@@ -1100,6 +1096,7 @@ export default function App() {
                 currentPlayerId={currentPlayerId}
                 activePlayerIds={activePlayerIds}
                 roundContent={roomState?.roundContent ?? null}
+                isHost={isHost}
               />
             )}
             {currentGame === 'emoji' && (

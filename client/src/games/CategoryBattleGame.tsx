@@ -169,10 +169,13 @@ export default function CategoryBattleGame({
 
   return (
     <div className="game-stage">
-      <div className="category-card">Kategorie Battle: {prompt.word}</div>
+      <div className="category-card">
+        <div className="category-card-title">Kategorie Battle</div>
+        <div className="category-card-prompt">{prompt.word}</div>
+      </div>
 
       {!winnerId ? (
-        <div className="guess-section">
+        <div className="guess-section category-bid-row">
           {canBid ? (
             <>
               <input
@@ -194,12 +197,16 @@ export default function CategoryBattleGame({
       ) : null}
 
       {!winnerId && Object.keys(bids).length > 0 ? (
-        <div className="guesses-log">
-          {Object.entries(bids).map(([id, bid]) => (
-            <div key={id} className="guess-entry">
-              {playerNameById[id] ?? 'Spieler'} hat {bid} geboten
-            </div>
-          ))}
+        <div className="category-status-card">
+          <div className="category-status-title">Gebote eingegangen</div>
+          <div className="category-status-list">
+            {Object.entries(bids).map(([id, bid]) => (
+              <div key={id} className="category-status-item">
+                <span>{playerNameById[id] ?? 'Spieler'}</span>
+                <strong>{bid}</strong>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 
@@ -216,12 +223,14 @@ export default function CategoryBattleGame({
 
       {winnerId && iAmWinner && winnerWords.length === 0 ? (
         <div className="category-word-form">
-          <div className="tagline">Du hast mit {winnerBid} gewonnen. Trage jetzt bis zu {winnerBid} Begriffe ein.</div>
+          <div className="category-form-title">
+            Du hast mit <strong>{winnerBid}</strong> gewonnen. Trage jetzt bis zu {winnerBid} Begriffe ein.
+          </div>
           {wordInputs.map((word, index) => (
             <div className="category-word-row" key={`input-${index}`}>
               <span className="category-word-index">{index + 1}.</span>
               <input
-                className="guess-input"
+                className="guess-input category-word-input"
                 placeholder={`Begriff ${index + 1}`}
                 value={word}
                 onChange={(event) =>
@@ -250,36 +259,38 @@ export default function CategoryBattleGame({
       ) : null}
 
       {winnerWords.length > 0 ? (
-        <div className="guesses-log">
-          <div className="tagline" style={{ marginBottom: 6 }}>
-            Begriffe von {playerNameById[winnerId ?? ''] ?? 'Spieler'}:
+        <div className="category-status-card">
+          <div className="category-status-title">
+            Begriffe von {playerNameById[winnerId ?? ''] ?? 'Spieler'}
           </div>
-          {winnerWords.map((word, index) => (
-            <div key={`${word}-${index}`} className="guess-entry">
-              {index + 1}. {word}
-            </div>
-          ))}
+          <ol className="category-word-list">
+            {winnerWords.map((word, index) => (
+              <li key={`${word}-${index}`}>{word}</li>
+            ))}
+          </ol>
         </div>
       ) : null}
 
       {iAmValidator && winnerWords.length > 0 && !result ? (
         <div className="category-validation">
-          <div className="tagline">Validierung</div>
+          <div className="category-validation-title">Validierung (nur Host/Prüfer)</div>
           {winnerWords.map((word, index) => (
-            <div key={`${word}-${index}`} className="category-validate-row">
+            <label key={`${word}-${index}`} className="category-validate-row">
+              <input
+                type="checkbox"
+                className="category-validate-checkbox"
+                checked={checked[word] ?? true}
+                onChange={() => setChecked((prev) => ({ ...prev, [word]: !(prev[word] ?? true) }))}
+              />
               <span className="category-word-index">{index + 1}.</span>
               <span className="category-validate-word">{word}</span>
-              <button
-                type="button"
-                className={`btn btn-sm ${checked[word] ?? true ? 'btn-secondary' : 'btn-back'}`}
-                onClick={() => setChecked((prev) => ({ ...prev, [word]: !(prev[word] ?? true) }))}
-              >
+              <span className={`category-validate-state ${(checked[word] ?? true) ? 'ok' : 'bad'}`}>
                 {(checked[word] ?? true) ? 'Gültig' : 'Ungültig'}
-              </button>
-            </div>
+              </span>
+            </label>
           ))}
           <button
-            className="btn btn-yellow btn-sm"
+            className="btn btn-yellow btn-sm category-validate-submit"
             onClick={() => {
               const accepted = winnerWords.filter((word) => checked[word] ?? true)
               onValidateWords(accepted)
@@ -297,9 +308,12 @@ export default function CategoryBattleGame({
       ) : null}
 
       {result ? (
-        <div className="guesses-log">
-          <div className={`guess-entry ${result.delta >= 0 ? 'correct-guess' : ''}`}>
-            Ergebnis: {result.accepted}/{result.bid} gültig · Punkte {result.delta >= 0 ? `+${result.delta}` : result.delta}
+        <div className="category-result-card">
+          <div className="category-result-line">
+            Gültig: {result.accepted}/{result.bid}
+          </div>
+          <div className={`category-result-line ${result.delta >= 0 ? 'correct-guess' : ''}`}>
+            Punkte: {result.delta >= 0 ? `+${result.delta}` : result.delta}
           </div>
         </div>
       ) : null}
