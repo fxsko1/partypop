@@ -734,14 +734,14 @@ export default function App() {
           </button>
           <div className="logo">PartyPop 🎊</div>
           <h2 className="heading">Raum erstellen</h2>
-          <input
-            className="name-input"
-            placeholder="Host-Name"
-            maxLength={20}
-            value={hostName}
-            onChange={(event) => setHostName(event.target.value)}
-          />
           <div className="create-room-card">
+            <input
+              className="name-input"
+              placeholder="Host-Name"
+              maxLength={20}
+              value={hostName}
+              onChange={(event) => setHostName(event.target.value)}
+            />
             <button
               className={`btn btn-sm ${createVisibility === 'private' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ maxWidth: 300 }}
@@ -749,19 +749,19 @@ export default function App() {
             >
               {createVisibility === 'private' ? '🔒 Privat (nur mit Raum-Code)' : '🌍 Public (Random Lobby)'}
             </button>
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%', maxWidth: 300, fontSize: '1.05rem', padding: '0.85rem 1.2rem' }}
+              onClick={createRoom}
+            >
+              Raum erstellen
+            </button>
           </div>
           <p className="tagline">
             {createVisibility === 'private'
               ? 'Privat: Beitritt nur mit Raum-Code.'
               : 'Öffentlich: Random Lobby Spieler können auch in laufende Räume joinen.'}
           </p>
-          <button
-            className="btn btn-primary"
-            style={{ width: '100%', maxWidth: 300, fontSize: '1.05rem', padding: '0.85rem 1.2rem' }}
-            onClick={createRoom}
-          >
-            Raum erstellen
-          </button>
         </>
       ) : screen === 'randomQueue' ? (
         <>
