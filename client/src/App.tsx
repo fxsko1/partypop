@@ -741,18 +741,13 @@ export default function App() {
             value={hostName}
             onChange={(event) => setHostName(event.target.value)}
           />
-          <div className="guess-section" style={{ maxWidth: 360 }}>
+          <div className="create-room-card">
             <button
-              className={`btn btn-sm ${createVisibility === 'private' ? 'btn-primary' : 'btn-back'}`}
-              onClick={() => setCreateVisibility('private')}
+              className={`btn btn-sm ${createVisibility === 'private' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ maxWidth: 300 }}
+              onClick={() => setCreateVisibility((prev) => (prev === 'private' ? 'public' : 'private'))}
             >
-              🔒 Privat
-            </button>
-            <button
-              className={`btn btn-sm ${createVisibility === 'public' ? 'btn-secondary' : 'btn-back'}`}
-              onClick={() => setCreateVisibility('public')}
-            >
-              🌍 Öffentlich
+              {createVisibility === 'private' ? '🔒 Privat (nur mit Raum-Code)' : '🌍 Public (Random Lobby)'}
             </button>
           </div>
           <p className="tagline">
@@ -775,60 +770,62 @@ export default function App() {
           </button>
           <div className="logo">Random Lobby</div>
           <p className="tagline">Öffentliche Räume finden oder neue Runde starten.</p>
-          <input
-            className="name-input"
-            placeholder="Dein Name"
-            maxLength={20}
-            value={randomName}
-            onChange={(event) => setRandomName(event.target.value)}
-          />
-          <div style={{ width: '100%', maxWidth: 360, display: 'flex', gap: 8 }}>
+          <div className="random-queue-card">
             <input
               className="name-input"
-              style={{ maxWidth: 110, padding: '0.7rem 0.8rem' }}
-              value={queueRegion}
-              onChange={(event) => setQueueRegion(event.target.value.toUpperCase())}
-              placeholder="Region"
-              maxLength={3}
+              placeholder="Dein Name"
+              maxLength={20}
+              value={randomName}
+              onChange={(event) => setRandomName(event.target.value)}
             />
-            <input
-              className="name-input"
-              style={{ maxWidth: 110, padding: '0.7rem 0.8rem' }}
-              value={queueLanguage}
-              onChange={(event) => setQueueLanguage(event.target.value.toLowerCase())}
-              placeholder="Sprache"
-              maxLength={5}
-            />
+            <div style={{ width: '100%', maxWidth: 360, display: 'flex', gap: 8 }}>
+              <input
+                className="name-input"
+                style={{ maxWidth: 110, padding: '0.7rem 0.8rem' }}
+                value={queueRegion}
+                onChange={(event) => setQueueRegion(event.target.value.toUpperCase())}
+                placeholder="Region"
+                maxLength={3}
+              />
+              <input
+                className="name-input"
+                style={{ maxWidth: 110, padding: '0.7rem 0.8rem' }}
+                value={queueLanguage}
+                onChange={(event) => setQueueLanguage(event.target.value.toLowerCase())}
+                placeholder="Sprache"
+                maxLength={5}
+              />
+            </div>
+            <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label className="tagline" style={{ textAlign: 'left' }}>
+                <input
+                  type="checkbox"
+                  checked={queueAgeConfirmed}
+                  onChange={(event) => setQueueAgeConfirmed(event.target.checked)}
+                />{' '}
+                Ich bin mindestens 16 Jahre alt.
+              </label>
+              <label className="tagline" style={{ textAlign: 'left' }}>
+                <input
+                  type="checkbox"
+                  checked={queueTermsConfirmed}
+                  onChange={(event) => setQueueTermsConfirmed(event.target.checked)}
+                />{' '}
+                Ich akzeptiere Content-Regeln.
+              </label>
+              <label className="tagline" style={{ textAlign: 'left' }}>
+                <input
+                  type="checkbox"
+                  checked={queuePrivacyConfirmed}
+                  onChange={(event) => setQueuePrivacyConfirmed(event.target.checked)}
+                />{' '}
+                Ich akzeptiere DSGVO-Hinweise.
+              </label>
+            </div>
+            <button className="btn btn-secondary" style={{ maxWidth: 360 }} onClick={joinRandomLobby}>
+              {isInQueue ? 'Queue aktualisieren' : 'In Queue gehen'}
+            </button>
           </div>
-          <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label className="tagline" style={{ textAlign: 'left' }}>
-              <input
-                type="checkbox"
-                checked={queueAgeConfirmed}
-                onChange={(event) => setQueueAgeConfirmed(event.target.checked)}
-              />{' '}
-              Ich bin mindestens 16 Jahre alt.
-            </label>
-            <label className="tagline" style={{ textAlign: 'left' }}>
-              <input
-                type="checkbox"
-                checked={queueTermsConfirmed}
-                onChange={(event) => setQueueTermsConfirmed(event.target.checked)}
-              />{' '}
-              Ich akzeptiere Content-Regeln.
-            </label>
-            <label className="tagline" style={{ textAlign: 'left' }}>
-              <input
-                type="checkbox"
-                checked={queuePrivacyConfirmed}
-                onChange={(event) => setQueuePrivacyConfirmed(event.target.checked)}
-              />{' '}
-              Ich akzeptiere DSGVO-Hinweise.
-            </label>
-          </div>
-          <button className="btn btn-secondary" onClick={joinRandomLobby}>
-            {isInQueue ? 'Queue aktualisieren' : 'In Queue gehen'}
-          </button>
           <p className="tagline">
             Suche Spieler in Region {queueRegion} / Sprache {queueLanguage}
           </p>

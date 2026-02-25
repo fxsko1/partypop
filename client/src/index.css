@@ -1189,6 +1189,20 @@ small,
   gap: 0.8rem;
 }
 
+.create-room-card,
+.random-queue-card {
+  width: 100%;
+  max-width: 380px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 18px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  align-items: center;
+}
+
 .premium-nudge {
   position: fixed;
   right: 1.2rem;
