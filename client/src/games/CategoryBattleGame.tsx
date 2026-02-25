@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { type Edition, getCategoryPrompts } from './gameContent'
+import type { RoundContent } from '@shared/types'
 
 type GuessLogEntry = { playerId: string; value: string; correct?: boolean }
 
@@ -20,6 +21,7 @@ type Props = {
   onSubmitBid: (bid: number) => void
   onSubmitWords: (words: string[]) => void
   onValidateWords: (acceptedWords: string[]) => void
+  roundContent: RoundContent | null
 }
 
 export default function CategoryBattleGame({
@@ -36,12 +38,17 @@ export default function CategoryBattleGame({
   onSubmitBid,
   onSubmitWords,
   onValidateWords,
-  onSubmitValue
+  onSubmitValue,
+  roundContent
 }: Props) {
   void onScore
 
   const prompts = useMemo(() => getCategoryPrompts(editions), [editions])
-  const prompt = prompts[contentSeed % prompts.length]
+  const fallbackPrompt = prompts[contentSeed % prompts.length]
+  const prompt =
+    roundContent?.mode === 'category'
+      ? { word: roundContent.category.prompt }
+      : fallbackPrompt
 
   const [localBid, setLocalBid] = useState(3)
   const [wordInputs, setWordInputs] = useState<string[]>([])

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { type Edition, getDrawingWords } from './gameContent'
+import type { RoundContent } from '@shared/types'
 
 const colors = ['#1a0a2e', '#FF4757', '#FF9F1C', '#FFE135', '#00F5D4', '#00BBF9', '#9B5DE5', '#FF6B9D', '#ffffff']
 
@@ -16,6 +17,7 @@ type Props = {
   guessLog: Array<{ playerId: string; value: string; correct?: boolean }>
   playerNameById: Record<string, string>
   submissions: Record<string, string>
+  roundContent: RoundContent | null
 }
 
 export default function DrawingGame({
@@ -30,7 +32,8 @@ export default function DrawingGame({
   onSubmitCanvas,
   guessLog,
   playerNameById,
-  submissions
+  submissions,
+  roundContent
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const isDrawingRef = useRef(false)
@@ -57,14 +60,16 @@ export default function DrawingGame({
 
   useEffect(() => {
     const list = getDrawingWords(editions)
-    setWord(list[contentSeed % list.length])
+    const fallback = list[contentSeed % list.length]
+    const picked = roundContent?.mode === 'drawing' ? roundContent.drawing.word : fallback
+    setWord(picked)
     setGuesses([])
     setGuessInput('')
     setHint('')
     awardedRef.current = {}
     lastRemoteImageRef.current = ''
     lastBroadcastRef.current = 0
-  }, [round, editions, contentSeed])
+  }, [round, editions, contentSeed, roundContent])
 
   useEffect(() => {
     const canvas = canvasRef.current

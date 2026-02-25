@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { type Edition, getEmojiRiddlesWithEdition } from './gameContent'
+import type { RoundContent } from '@shared/types'
 
 type Props = {
   players: string[]
@@ -12,6 +13,7 @@ type Props = {
   playerNameById: Record<string, string>
   currentPlayerName: string
   timeLeft: number
+  roundContent: RoundContent | null
 }
 
 export default function EmojiRiddleGame({
@@ -24,14 +26,23 @@ export default function EmojiRiddleGame({
   submissions,
   playerNameById,
   currentPlayerName,
-  timeLeft
+  timeLeft,
+  roundContent
 }: Props) {
   const effectiveEditions = useMemo(() => {
     const hasFilmOrGaming = editions.includes('film') || editions.includes('gaming')
     return hasFilmOrGaming ? editions.filter((edition) => edition === 'film' || edition === 'gaming') : editions
   }, [editions])
   const riddles = useMemo(() => getEmojiRiddlesWithEdition(effectiveEditions), [effectiveEditions])
-  const riddle = riddles[contentSeed % riddles.length]
+  const fallback = riddles[contentSeed % riddles.length]
+  const riddle =
+    roundContent?.mode === 'emoji'
+      ? {
+          emoji: roundContent.emoji.emoji,
+          answer: roundContent.emoji.answer,
+          edition: roundContent.emoji.edition
+        }
+      : fallback
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const completedRef = useRef(false)
   const [feedback, setFeedback] = useState<{ text: string; kind: 'ok' | 'bad' } | null>(null)

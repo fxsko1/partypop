@@ -4,6 +4,7 @@ import express from 'express'
 import http from 'http'
 import { Server } from 'socket.io'
 import { checkDatabaseConnection, hasDatabaseConfig } from './db'
+import { getRoundContentFromDb } from './contentRepo'
 import {
   ClientToServerEvents,
   GameMode,
@@ -65,6 +66,7 @@ const createRoomState = (code: RoomCode, host: Player): RoomState => ({
   maxRounds: 10,
   roundSeconds: 60,
   selectedEditions: ['wissen'],
+  roundContent: null,
   roundSubmissions: {},
   roundGuessLog: [],
   players: [host],
@@ -97,6 +99,16 @@ const addScore = (room: RoomState, playerId: string, delta: number) => {
   const player = room.players.find((p) => p.id === playerId)
   if (!player) return
   player.score += delta
+}
+
+const prepareRoundContent = async (room: RoomState, mode: GameMode) => {
+  try {
+    const content = await getRoundContentFromDb(room.code, room.round, mode, room.selectedEditions)
+    room.roundContent = content
+  } catch (error) {
+    console.error('Failed to load DB round content:', error)
+    room.roundContent = null
+  }
 }
 
 io.on('connection', (socket) => {
@@ -189,7 +201,7 @@ io.on('connection', (socket) => {
     emitRoomUpdate(room)
   })
 
-  socket.on('start-game', (payload) => {
+  socket.on('start-game', async (payload) => {
     const room = rooms.get(payload.code)
     if (!room) {
       emitError(socket.id, { code: 'ROOM_NOT_FOUND', message: 'Raum nicht gefunden.' })
@@ -203,13 +215,14 @@ io.on('connection', (socket) => {
     room.mode = payload.mode as GameMode
     room.phase = 'in_game' as GamePhase
     room.round = 1
+    await prepareRoundContent(room, room.mode)
     room.roundSubmissions = {}
     room.roundGuessLog = []
     resetRoundAwards(room.code)
     emitRoomUpdate(room)
   })
 
-  socket.on('player-action', (payload: PlayerActionPayload) => {
+  socket.on('player-action', async (payload: PlayerActionPayload) => {
     const room = rooms.get(payload.code)
     if (!room) {
       emitError(socket.id, { code: 'ROOM_NOT_FOUND', message: 'Raum nicht gefunden.' })
@@ -238,6 +251,10 @@ io.on('connection', (socket) => {
       room.round = payload.action.round
       room.mode = payload.action.nextMode
       room.phase = payload.action.finished ? 'session_end' : 'in_game'
+      room.roundContent = null
+      if (!payload.action.finished) {
+        await prepareRoundContent(room, room.mode)
+      }
       room.roundSubmissions = {}
       room.roundGuessLog = []
       resetRoundAwards(room.code)

@@ -6,6 +6,46 @@ export type EditionKey = 'fussball' | 'wissen' | 'romantisch' | 'gaming' | 'film
 export type GameMode = 'quiz' | 'drawing' | 'voting' | 'emoji' | 'category'
 export type GamePhase = 'lobby' | 'countdown' | 'in_game' | 'results' | 'session_end'
 
+export type RoundContent =
+  | {
+      mode: 'quiz'
+      question: {
+        text: string
+        answers: string[]
+        correctIndex: number
+        edition: EditionKey
+      }
+    }
+  | {
+      mode: 'drawing'
+      drawing: {
+        word: string
+        edition: EditionKey
+      }
+    }
+  | {
+      mode: 'voting'
+      voting: {
+        prompt: string
+        edition: EditionKey
+      }
+    }
+  | {
+      mode: 'emoji'
+      emoji: {
+        emoji: string
+        answer: string
+        edition: EditionKey
+      }
+    }
+  | {
+      mode: 'category'
+      category: {
+        prompt: string
+        edition: EditionKey
+      }
+    }
+
 export interface Player {
   id: PlayerId
   name: string
@@ -23,6 +63,7 @@ export interface RoomState {
   maxRounds: number
   roundSeconds: number
   selectedEditions: EditionKey[]
+  roundContent: RoundContent | null
   roundSubmissions: Record<PlayerId, string>
   roundGuessLog: Array<{
     playerId: PlayerId

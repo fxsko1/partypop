@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { type Edition, getQuizQuestions } from './gameContent'
+import type { RoundContent } from '@shared/types'
 const classes = ['a', 'b', 'c', 'd']
 
 type Props = {
@@ -15,6 +16,7 @@ type Props = {
   currentPlayerName: string
   currentPlayerId: string
   activePlayerIds: string[]
+  roundContent: RoundContent | null
 }
 
 export default function QuizGame({
@@ -29,7 +31,8 @@ export default function QuizGame({
   playerNameById,
   currentPlayerName,
   currentPlayerId,
-  activePlayerIds
+  activePlayerIds,
+  roundContent
 }: Props) {
   const [selected, setSelected] = useState<number | null>(null)
   const [scores, setScores] = useState<Record<string, number>>({})
@@ -46,10 +49,18 @@ export default function QuizGame({
     setSelected(null)
   }, [round])
 
-  const question = useMemo(() => {
+  const fallbackQuestion = useMemo(() => {
     const list = getQuizQuestions(editions)
     return list[contentSeed % list.length]
   }, [contentSeed, editions])
+  const question =
+    roundContent?.mode === 'quiz'
+      ? {
+          q: roundContent.question.text,
+          answers: roundContent.question.answers,
+          correct: roundContent.question.correctIndex
+        }
+      : fallbackQuestion
 
   const scoreBar = useMemo(
     () =>

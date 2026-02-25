@@ -817,6 +817,7 @@ export default function App() {
                 currentPlayerName={currentPlayerName}
                 currentPlayerId={currentPlayerId}
                 activePlayerIds={activePlayerIds}
+                roundContent={roomState?.roundContent ?? null}
               />
             )}
             {currentGame === 'drawing' && (
@@ -833,6 +834,7 @@ export default function App() {
                 guessLog={roomState?.roundGuessLog ?? []}
                 playerNameById={playerNameById}
                 submissions={roomState?.roundSubmissions ?? {}}
+                roundContent={roomState?.roundContent ?? null}
               />
             )}
             {currentGame === 'voting' && (
@@ -849,6 +851,7 @@ export default function App() {
                 currentPlayerName={currentPlayerName}
                 currentPlayerId={currentPlayerId}
                 activePlayerIds={activePlayerIds}
+                roundContent={roomState?.roundContent ?? null}
               />
             )}
             {currentGame === 'emoji' && (
@@ -863,6 +866,7 @@ export default function App() {
                 playerNameById={playerNameById}
                 currentPlayerName={currentPlayerName}
                 timeLeft={timeLeft}
+                roundContent={roomState?.roundContent ?? null}
               />
             )}
             {currentGame === 'category' && (
@@ -883,6 +887,7 @@ export default function App() {
                 onSubmitBid={submitCategoryBid}
                 onSubmitWords={submitCategoryWords}
                 onValidateWords={submitCategoryValidation}
+                roundContent={roomState?.roundContent ?? null}
               />
             )}
             <div className="tagline">Runde läuft...</div>

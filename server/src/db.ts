@@ -15,6 +15,14 @@ const getPool = () => {
 
 export const hasDatabaseConfig = () => Boolean(process.env.DATABASE_URL)
 
+export const dbQuery = async (text: string, params: unknown[] = []) => {
+  const clientPool = getPool()
+  if (!clientPool) {
+    throw new Error('DATABASE_URL fehlt')
+  }
+  return clientPool.query(text, params)
+}
+
 export const checkDatabaseConnection = async () => {
   const clientPool = getPool()
   if (!clientPool) {

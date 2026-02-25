@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { type Edition, getVotingQuestions } from './gameContent'
+import type { RoundContent } from '@shared/types'
 
 type Props = {
   players: string[]
@@ -14,6 +15,7 @@ type Props = {
   currentPlayerName: string
   currentPlayerId: string
   activePlayerIds: string[]
+  roundContent: RoundContent | null
 }
 
 export default function VotingGame({
@@ -28,7 +30,8 @@ export default function VotingGame({
   playerNameById,
   currentPlayerName,
   currentPlayerId,
-  activePlayerIds
+  activePlayerIds,
+  roundContent
 }: Props) {
   const [results, setResults] = useState<Record<string, number> | null>(null)
   const [voted, setVoted] = useState<Record<string, boolean>>({})
@@ -36,7 +39,8 @@ export default function VotingGame({
   const scoredRef = useRef(false)
 
   const list = getVotingQuestions(editions)
-  const question = list[contentSeed % list.length]
+  const fallbackQuestion = list[contentSeed % list.length]
+  const question = roundContent?.mode === 'voting' ? roundContent.voting.prompt : fallbackQuestion
 
   const total = useMemo(() => {
     if (!results) return 0
