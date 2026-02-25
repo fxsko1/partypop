@@ -747,7 +747,7 @@ export default function App() {
               style={{ maxWidth: 300 }}
               onClick={() => setCreateVisibility((prev) => (prev === 'private' ? 'public' : 'private'))}
             >
-              {createVisibility === 'private' ? '🔒 Privat (nur mit Raum-Code)' : '🌍 Public (Random Lobby)'}
+              {createVisibility === 'private' ? '🔒 Privat' : '🌍 Public'}
             </button>
             <button
               className="btn btn-primary"
