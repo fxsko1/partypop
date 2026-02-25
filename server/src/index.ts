@@ -19,6 +19,7 @@ import {
   ReportPlayerPayload,
   RoomCode,
   RoomState,
+  RoomVisibility,
   ServerError,
   ServerToClientEvents,
   SocketData
@@ -55,6 +56,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, Record<string,
 const rooms = new Map<RoomCode, RoomState>()
 const awardedTokensByRoom = new Map<RoomCode, Set<string>>()
 const CATEGORY_MAX_BID = 12
+const PUBLIC_ROOM_MAX_PLAYERS = 15
 const queueByKey = new Map<string, Array<{
   socketId: string
   playerId: string
@@ -73,9 +75,15 @@ const generateCode = (): RoomCode => {
   return code
 }
 
-const createRoomState = (code: RoomCode, host: Player, source: RoomState['source'] = 'private'): RoomState => ({
+const createRoomState = (
+  code: RoomCode,
+  host: Player,
+  source: RoomState['source'] = 'private',
+  visibility: RoomVisibility = 'private'
+): RoomState => ({
   code,
   source,
+  visibility,
   hostId: host.id,
   mode: null,
   phase: 'lobby',
@@ -174,6 +182,21 @@ const canMatchPair = (aId: string, bId: string) => {
   return true
 }
 
+const findJoinablePublicRoom = (region: string, language: string) => {
+  const entries = Array.from(rooms.values())
+  const candidates = entries.filter((room) => {
+    if (room.source !== 'random' || room.visibility !== 'public') return false
+    const roomRegion = (room.roundGuessLog.find((entry) => entry.value.startsWith('region:'))?.value ?? '').replace('region:', '')
+    const roomLanguage = (room.roundGuessLog.find((entry) => entry.value.startsWith('language:'))?.value ?? '').replace('language:', '')
+    if (roomRegion !== region || roomLanguage !== language) return false
+    const connectedCount = room.players.filter((player) => player.connected).length
+    return connectedCount < PUBLIC_ROOM_MAX_PLAYERS
+  })
+  if (!candidates.length) return null
+  candidates.sort((a, b) => b.players.filter((p) => p.connected).length - a.players.filter((p) => p.connected).length)
+  return candidates[0]
+}
+
 const tryMatchmake = (key: string) => {
   const entries = queueByKey.get(key) ?? []
   if (entries.length < RANDOM_MATCH_SIZE) return
@@ -210,7 +233,7 @@ const tryMatchmake = (key: string) => {
     connected: true,
     isHost: true
   }
-  const room = createRoomState(code, host, 'random')
+  const room = createRoomState(code, host, 'random', 'public')
   room.players = selected.map((entry, index) => ({
     id: entry.playerId,
     name: entry.name,
@@ -218,6 +241,8 @@ const tryMatchmake = (key: string) => {
     connected: true,
     isHost: index === 0
   }))
+  room.roundGuessLog.push({ playerId: host.id, value: `region:${hostEntry.region}` })
+  room.roundGuessLog.push({ playerId: host.id, value: `language:${hostEntry.language}` })
   rooms.set(code, room)
   resetRoundAwards(code)
 
@@ -292,6 +317,8 @@ io.on('connection', (socket) => {
 
     if (isHost) {
       const newCode = generateCode()
+      const visibility: RoomVisibility = payload.visibility === 'public' ? 'public' : 'private'
+      const source: RoomState['source'] = visibility === 'public' ? 'random' : 'private'
       const host: Player = {
         id: playerId ?? socket.id,
         name: clean,
@@ -299,7 +326,11 @@ io.on('connection', (socket) => {
         connected: true,
         isHost: true
       }
-      const room = createRoomState(newCode, host)
+      const room = createRoomState(newCode, host, source, visibility)
+      if (visibility === 'public') {
+        room.roundGuessLog.push({ playerId: host.id, value: 'region:DE' })
+        room.roundGuessLog.push({ playerId: host.id, value: 'language:de' })
+      }
       rooms.set(newCode, room)
       resetRoundAwards(newCode)
       socket.join(newCode)
@@ -379,6 +410,33 @@ io.on('connection', (socket) => {
     }
 
     dequeueSocketEverywhere(socket.id)
+
+    const joinable = findJoinablePublicRoom(region, language)
+    if (joinable) {
+      const existingById = joinable.players.find((p) => p.id === entry.playerId)
+      const existingByName = joinable.players.find((p) => p.name === entry.name && !p.connected)
+      if (existingById) {
+        existingById.connected = true
+      } else if (existingByName) {
+        existingByName.connected = true
+      } else {
+        joinable.players.push({
+          id: entry.playerId,
+          name: entry.name,
+          score: 0,
+          connected: true,
+          isHost: false
+        })
+      }
+      socket.join(joinable.code)
+      socket.data.playerId = entry.playerId
+      socket.data.roomCode = joinable.code
+      socket.data.randomQueueKey = undefined
+      socket.emit('room-joined', joinable)
+      emitRoomUpdate(joinable)
+      return
+    }
+
     const next = queueByKey.get(key) ?? []
     next.push(entry)
     queueByKey.set(key, next)

@@ -3,6 +3,7 @@ export type PlayerId = string
 export type GameId = string
 export type EditionKey = 'fussball' | 'wissen' | 'romantisch' | 'gaming' | 'film'
 export type RoomSource = 'private' | 'random'
+export type RoomVisibility = 'private' | 'public'
 
 export type GameMode = 'quiz' | 'drawing' | 'voting' | 'emoji' | 'category'
 export type GamePhase = 'lobby' | 'countdown' | 'in_game' | 'results' | 'session_end'
@@ -58,6 +59,7 @@ export interface Player {
 export interface RoomState {
   code: RoomCode
   source: RoomSource
+  visibility: RoomVisibility
   hostId: PlayerId
   mode: GameMode | null
   phase: GamePhase
@@ -82,6 +84,7 @@ export interface JoinRoomPayload {
   name: string
   isHost: boolean
   playerId?: PlayerId
+  visibility?: RoomVisibility
 }
 
 export interface JoinRandomLobbyPayload {

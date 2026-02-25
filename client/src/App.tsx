@@ -84,6 +84,7 @@ export default function App() {
   const [roomState, setRoomState] = useState<RoomState | null>(null)
   const [joinName, setJoinName] = useState('')
   const [hostName, setHostName] = useState('Host')
+  const [createVisibility, setCreateVisibility] = useState<'private' | 'public'>('private')
   const [randomName, setRandomName] = useState('')
   const [queueRegion, setQueueRegion] = useState('DE')
   const [queueLanguage, setQueueLanguage] = useState('de')
@@ -91,6 +92,7 @@ export default function App() {
   const [queueAgeConfirmed, setQueueAgeConfirmed] = useState(false)
   const [queueTermsConfirmed, setQueueTermsConfirmed] = useState(false)
   const [queuePrivacyConfirmed, setQueuePrivacyConfirmed] = useState(false)
+  const [isInQueue, setIsInQueue] = useState(false)
   const [joinCode, setJoinCode] = useState('')
   const [showProfile, setShowProfile] = useState(false)
   const [showPremiumNudge, setShowPremiumNudge] = useState(false)
@@ -319,6 +321,7 @@ export default function App() {
           return acc
         }, {})
       )
+      setIsInQueue(false)
       if (room.phase === 'in_game') {
         setScreen('game')
       } else if (room.phase === 'session_end') {
@@ -409,7 +412,8 @@ export default function App() {
     const payload: JoinRoomPayload = {
       isHost: true,
       name: cleanHostName,
-      playerId: playerIdRef.current
+      playerId: playerIdRef.current,
+      visibility: createVisibility
     }
     socket.emit('join-room', payload)
   }
@@ -443,6 +447,7 @@ export default function App() {
     setRound(0)
     setTimeLeft(60)
     setLeaveNotice('')
+    setIsInQueue(false)
     setScreen('home')
   }
 
@@ -464,11 +469,12 @@ export default function App() {
     }
     socket.emit('join-random-lobby', payload)
     setConnectionError('')
-    setScreen('randomQueue')
+    setIsInQueue(true)
   }
 
   const leaveRandomLobby = () => {
     socketRef.current?.emit('leave-random-lobby')
+    setIsInQueue(false)
     setScreen('home')
   }
 
@@ -716,43 +722,9 @@ export default function App() {
             <button className="btn btn-secondary" onClick={() => setScreen('join')}>
               📱 Beitreten
             </button>
-            <input
-              className="name-input"
-              placeholder="Name für Random Lobby"
-              maxLength={20}
-              value={randomName}
-              onChange={(event) => setRandomName(event.target.value)}
-            />
-            <button className="btn btn-secondary" onClick={joinRandomLobby}>
+            <button className="btn btn-secondary" onClick={() => setScreen('randomQueue')}>
               🌍 Random Lobby (DE)
             </button>
-            <button className="btn btn-yellow">✨ Demo starten</button>
-          </div>
-          <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label className="tagline" style={{ textAlign: 'left' }}>
-              <input
-                type="checkbox"
-                checked={queueAgeConfirmed}
-                onChange={(event) => setQueueAgeConfirmed(event.target.checked)}
-              />{' '}
-              Ich bin mindestens 16 Jahre alt.
-            </label>
-            <label className="tagline" style={{ textAlign: 'left' }}>
-              <input
-                type="checkbox"
-                checked={queueTermsConfirmed}
-                onChange={(event) => setQueueTermsConfirmed(event.target.checked)}
-              />{' '}
-              Ich akzeptiere Content-Regeln (kein Hate/Spam/Belästigung).
-            </label>
-            <label className="tagline" style={{ textAlign: 'left' }}>
-              <input
-                type="checkbox"
-                checked={queuePrivacyConfirmed}
-                onChange={(event) => setQueuePrivacyConfirmed(event.target.checked)}
-              />{' '}
-              Ich akzeptiere DSGVO-Hinweise zur Datenverarbeitung.
-            </label>
           </div>
         </>
       ) : screen === 'create' ? (
@@ -769,6 +741,25 @@ export default function App() {
             value={hostName}
             onChange={(event) => setHostName(event.target.value)}
           />
+          <div className="guess-section" style={{ maxWidth: 360 }}>
+            <button
+              className={`btn btn-sm ${createVisibility === 'private' ? 'btn-primary' : 'btn-back'}`}
+              onClick={() => setCreateVisibility('private')}
+            >
+              🔒 Privat
+            </button>
+            <button
+              className={`btn btn-sm ${createVisibility === 'public' ? 'btn-secondary' : 'btn-back'}`}
+              onClick={() => setCreateVisibility('public')}
+            >
+              🌍 Öffentlich
+            </button>
+          </div>
+          <p className="tagline">
+            {createVisibility === 'private'
+              ? 'Privat: Beitritt nur mit Raum-Code.'
+              : 'Öffentlich: Random Lobby Spieler können auch in laufende Räume joinen.'}
+          </p>
           <button className="btn btn-primary" onClick={createRoom}>
             Raum erstellen
           </button>
@@ -779,6 +770,61 @@ export default function App() {
             ← Warteschlange verlassen
           </button>
           <div className="logo">Random Lobby</div>
+          <p className="tagline">Öffentliche Räume finden oder neue Runde starten.</p>
+          <input
+            className="name-input"
+            placeholder="Dein Name"
+            maxLength={20}
+            value={randomName}
+            onChange={(event) => setRandomName(event.target.value)}
+          />
+          <div style={{ width: '100%', maxWidth: 360, display: 'flex', gap: 8 }}>
+            <input
+              className="name-input"
+              style={{ maxWidth: 110, padding: '0.7rem 0.8rem' }}
+              value={queueRegion}
+              onChange={(event) => setQueueRegion(event.target.value.toUpperCase())}
+              placeholder="Region"
+              maxLength={3}
+            />
+            <input
+              className="name-input"
+              style={{ maxWidth: 110, padding: '0.7rem 0.8rem' }}
+              value={queueLanguage}
+              onChange={(event) => setQueueLanguage(event.target.value.toLowerCase())}
+              placeholder="Sprache"
+              maxLength={5}
+            />
+          </div>
+          <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label className="tagline" style={{ textAlign: 'left' }}>
+              <input
+                type="checkbox"
+                checked={queueAgeConfirmed}
+                onChange={(event) => setQueueAgeConfirmed(event.target.checked)}
+              />{' '}
+              Ich bin mindestens 16 Jahre alt.
+            </label>
+            <label className="tagline" style={{ textAlign: 'left' }}>
+              <input
+                type="checkbox"
+                checked={queueTermsConfirmed}
+                onChange={(event) => setQueueTermsConfirmed(event.target.checked)}
+              />{' '}
+              Ich akzeptiere Content-Regeln.
+            </label>
+            <label className="tagline" style={{ textAlign: 'left' }}>
+              <input
+                type="checkbox"
+                checked={queuePrivacyConfirmed}
+                onChange={(event) => setQueuePrivacyConfirmed(event.target.checked)}
+              />{' '}
+              Ich akzeptiere DSGVO-Hinweise.
+            </label>
+          </div>
+          <button className="btn btn-secondary" onClick={joinRandomLobby}>
+            {isInQueue ? 'Queue aktualisieren' : 'In Queue gehen'}
+          </button>
           <p className="tagline">
             Suche Spieler in Region {queueRegion} / Sprache {queueLanguage}
           </p>
@@ -787,6 +833,7 @@ export default function App() {
             <div className="code">{queueWaiting}</div>
           </div>
           <p className="tagline">Sobald genug Spieler da sind, erstellt der Server automatisch einen Raum.</p>
+          {connectionError ? <p className="tagline">{connectionError}</p> : null}
         </>
       ) : screen === 'join' ? (
         <>
