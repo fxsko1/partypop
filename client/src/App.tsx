@@ -79,6 +79,7 @@ export default function App() {
   const [roomCode, setRoomCode] = useState<string>('----')
   const [roomState, setRoomState] = useState<RoomState | null>(null)
   const [joinName, setJoinName] = useState('')
+  const [hostName, setHostName] = useState('Host')
   const [joinCode, setJoinCode] = useState('')
   const [showProfile, setShowProfile] = useState(false)
   const [showPremiumNudge, setShowPremiumNudge] = useState(false)
@@ -387,9 +388,10 @@ export default function App() {
   const createRoom = () => {
     const socket = socketRef.current
     if (!socket) return
+    const cleanHostName = hostName.trim() || 'Host'
     const payload: JoinRoomPayload = {
       isHost: true,
-      name: 'Du (Host)',
+      name: cleanHostName,
       playerId: playerIdRef.current
     }
     socket.emit('join-room', payload)
@@ -647,6 +649,13 @@ export default function App() {
           <div className="logo">PartyPop 🎊</div>
           <p className="tagline">Das Party-Game für alle! Kein Download nötig.</p>
           <div className="home-buttons">
+            <input
+              className="name-input"
+              placeholder="Host-Name"
+              maxLength={20}
+              value={hostName}
+              onChange={(event) => setHostName(event.target.value)}
+            />
             <button className="btn btn-primary" onClick={createRoom}>
               🎮 Raum erstellen
             </button>
